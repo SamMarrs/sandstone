@@ -84,7 +84,7 @@ class BooleanStateManager {
     BooleanStateManager(
         this.notifyListeners,
         List<BooleanStateValue> managedValues,
-        // void Function(BooleanTuple) stateActions,
+        // TODO: void Function(BooleanTuple) stateActions,
     ): _managedValues = HashSet.of(managedValues) {
         assert(_managedValues.isNotEmpty);
         int i = 0;
