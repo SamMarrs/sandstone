@@ -6,6 +6,8 @@ import 'package:tuple/tuple.dart';
 
 // TODO: How do we enforce that BooleanStateValue.position is not null?
 // TODO: How do we prevent BooleanStateValues from being passed to multiple state managers?
+// TODO: How should data be passed to stateActions()
+// TODO: Within stateActions, how order of actions be made irrelevant when choosing which action to run for the given state?
 
 /// hashCode of Tuple must follow some rules.
 ///
