@@ -1,6 +1,8 @@
 import 'dart:collection';
 import 'dart:math' as Math;
 
+import 'package:fsm/src/unmanned_classes/utils.dart';
+
 import './typedefs.dart';
 import 'package:tuple/tuple.dart';
 
@@ -19,7 +21,7 @@ class BooleanStateManager {
 
     final List<_ManagedStateAction> _managedStateActions = [];
 
-    HashSet<void Function()> _stateTransitions = HashSet();
+    HashSet<Map<ManagedValue, bool> Function()> _stateTransitions = HashSet();
 
     // TODO: replace HashSet.containsKey with a method that returns true if _ManagedStateAction._shouldRun returns true
     final HashSet<StateTuple> _validStates = HashSet();
@@ -28,14 +30,12 @@ class BooleanStateManager {
     late StateTuple _currentState;
     StateTuple get currentState => _currentState;
 
-    BooleanStateManager(
-        void Function() notifyListeners,
-        List<BooleanStateValue> managedValues,
-        {
-            List<StateAction>? stateActions,
-            List<void Function()>? stateTransitions,
-        }
-    ): _notifyListeners = notifyListeners {
+    BooleanStateManager({
+        required void Function() notifyListeners,
+        required List<BooleanStateValue> managedValues,
+        List<StateAction>? stateActions,
+        List<Map<ManagedValue, bool> Function()>? stateTransitions,
+    }): _notifyListeners = notifyListeners {
         // Setup managed values with correct position information.
         for (int i = 0; i < managedValues.length; i++) {
             _booleanStateValueToIndex[managedValues[i]] = i;
@@ -51,6 +51,19 @@ class BooleanStateManager {
         assert(_checkIfValidInitialState());
         _currentState = StateTuple._fromList(_managedValues, this);
 
+        // Create state transitions
+        if (stateTransitions != null) {
+            stateTransitions.forEach(
+                (transition) {
+                    _stateTransitions.add(transition);
+                    // check if possible
+                    assert(_checkIfTransitionMaySucceed(transition()));
+                    // TODO: check if more than one end state is possible
+                }
+            );
+
+        }
+
         // Create state actions.
         if (stateActions != null) {
             stateActions.forEach(
@@ -58,27 +71,38 @@ class BooleanStateManager {
                     _ManagedStateAction? sa = _ManagedStateAction.create(positions: _booleanStateValueToIndex, stateAction: action);
                     if (sa != null) {
                         _managedStateActions.add(sa);
-                        assert(_checkIfMayRun(sa), 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
+                        assert(_checkIfActionMayRun(sa), 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
                     }
                 }
             );
         }
 
-        // Create state transitions
-        if (stateTransitions != null) {
-            stateTransitions.forEach((transition) => _stateTransitions.add(transition));
-        }
     }
 
-    /// debug checking if initial state is valid
+    /// Debug checking if initial state is valid
     bool _checkIfValidInitialState() {
         return _isAllowed(
             StateTuple._fromList(_managedValues, this)
         );
     }
 
+    /// Debug checking.
+    bool _checkIfTransitionMaySucceed(Map<ManagedValue, bool> transitionUpdate) {
+        _findAllGoodState();
+        bool maySucceed = false;
+        _validStates.any(
+            (state) {
+                return (
+                    state.hashCode
+                    & Utils.maskFromMap<ManagedValue>(transitionUpdate, (key) => key._position)
+                ) == Utils.hashFromMap<ManagedValue>(transitionUpdate, (key) => key._position);
+            }
+        );
+        return maySucceed;
+    }
+
     /// Debug checking if it is possible for a state action to run.
-    bool _checkIfMayRun(_ManagedStateAction stateAction) {
+    bool _checkIfActionMayRun(_ManagedStateAction stateAction) {
         _findAllGoodState();
         // TODO: This may be sped up to amortized constant time if the HashMap of _validStates is extended to work similar to _ManagedStateAction._shouldRun.
         return _validStates.any((state) => stateAction._shouldRun(state));
@@ -152,8 +176,12 @@ class BooleanStateManager {
 
 class _ManagedStateAction {
     final String? actionName;
-    // <position, value>
+    /// A map of _ManagedValue indices to a value for that _ManagedValue.
+    ///
+    /// Used to check if this action should run for a given state.
     final Map<int, bool> registeredStateValues;
+
+    // An action to run.
     final void Function() action;
 
 
@@ -186,28 +214,14 @@ class _ManagedStateAction {
     int? _mask;
     int get mask {
         if (_mask != null) return _mask!;
-        int mask = 0;
-        List<int> masks = registeredStateValues.keys.map(
-            (position) => 1 << position
-        ).toList(growable: false);
-        masks.forEach((m) => mask = mask | m);
-        _mask = mask;
+        _mask = Utils.maskFromMap<int>(registeredStateValues, (key) => key);
         return mask;
     }
 
     int? _hash;
     int get hash {
         if (_hash != null) return _hash!;
-        List<int> hashes = [];
-        registeredStateValues.forEach(
-            (key, value) {
-                if (value) {
-                    hashes.add(1 << key);
-                }
-            }
-        );
-        int hash = hashes.length == 0 ? 0 : hashes.reduce((value, element) => value & element);
-        _hash = hash;
+        _hash = Utils.hashFromMap<int>(registeredStateValues, (key) => key);
         return hash;
     }
 
