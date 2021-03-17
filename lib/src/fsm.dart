@@ -36,6 +36,7 @@ class BooleanStateManager {
             List<void Function()>? stateTransitions,
         }
     ): _notifyListeners = notifyListeners {
+        // Setup managed values with correct position information.
         for (int i = 0; i < managedValues.length; i++) {
             _booleanStateValueToIndex[managedValues[i]] = i;
             _managedValues.add(
@@ -46,9 +47,11 @@ class BooleanStateManager {
                 )
             );
         }
+        // Check if the initial state is valid, as defined by the _canBeTrue and _canBeFalse functions of all managed values.
         assert(_checkIfValidInitialState());
         _currentState = StateTuple._fromList(_managedValues, this);
 
+        // Create state actions.
         if (stateActions != null) {
             stateActions.forEach(
                 (action) {
@@ -61,6 +64,7 @@ class BooleanStateManager {
             );
         }
 
+        // Create state transitions
         if (stateTransitions != null) {
             stateTransitions.forEach((transition) => _stateTransitions.add(transition));
         }
@@ -86,7 +90,7 @@ class BooleanStateManager {
         if (!_foundAllGoodStates) {
             int maxInt = (Math.pow(2, _managedValues.length) as int) - 1;
             for (int i = 0; i <= maxInt; i++) {
-                StateTuple? st = StateTuple._fromInt(_managedValues, this, i);
+                StateTuple? st = StateTuple._fromHash(_managedValues, this, i);
                 if (st != null) {
                     bool isAllowed = _isAllowed(st);
                     // If _isAllowed() didn't already populate _validStates and _inValidState, that would be done here.
@@ -274,23 +278,26 @@ class StateTuple {
         );
     }
 
-    static StateTuple? _fromInt(
+    static StateTuple? _fromHash(
         List<ManagedValue> valueReferences,
         BooleanStateManager manager,
-        int stateInt
+        int stateHash
     ) {
-        assert(stateInt > 0);
-        if (stateInt < 0) return null;
+        assert(stateHash > 0);
+        if (stateHash < 0) return null;
         int maxInt = (Math.pow(2, valueReferences.length) as int) - 1;
-        assert(stateInt <= maxInt);
-        if (stateInt > maxInt) return null;
+        assert(stateHash <= maxInt);
+        if (stateHash > maxInt) return null;
 
         Map<int, bool> updates = {};
         for (int i = 0; i < valueReferences.length; i++) {
-            int value = stateInt & (1 << i);
+            int value = stateHash & (1 << i);
             updates[i] = value > 0;
         }
-        return StateTuple._fromList(valueReferences, manager, updates);
+        StateTuple st = StateTuple._fromList(valueReferences, manager, updates);
+        st._hashCode = stateHash;
+
+        return st;
     }
 
     /// width of tuple;
