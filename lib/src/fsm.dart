@@ -17,38 +17,30 @@ import 'package:tuple/tuple.dart';
 ///
 /// These rules do not have to be followed when Two different classes that extend Tuple are compared to each other.
 class StateTuple {
-    late final List<bool> _values;
-    late final HashSet<BooleanStateValue> _valueReferences;
-
-    StateTuple._fromSet(
-        this._valueReferences
-    ) {
-        _values = _valueReferences.map((ref) => ref.value).toList(growable: false);
-    }
+    final List<bool> _values = [];
+    final List<BooleanStateValue> _valueReferences;
+    final BooleanStateManager _manager;
 
     StateTuple._fromList(
-        List<bool> values,
-        this._valueReferences
-    ): _values = List.unmodifiable(values);
+        this._valueReferences,
+        this._manager,
+        [Map<int, bool>? updates]
+    ) {
+        _valueReferences.forEach(
+            (ref) {
+                _values.add(
+                    updates != null && updates.containsKey(ref._position) ?
+                        updates[ref._position]!
+                        : ref.value
+                );
+            }
+        );
+    }
 
     /// width of tuple;
     int get width => _values.length;
 
     UnmodifiableListView<bool> get values => UnmodifiableListView(_values);
-
-    BooleanStateValue? getStateValue(int position) {
-        if (_values.length > position && position >= 0) {
-            _valueReferences.elementAt(position);
-        }
-        return null;
-    }
-
-    bool? operator [](BooleanStateValue stateValue)  {
-        if (_valueReferences.contains(stateValue)) {
-            return _values[stateValue.position];
-        }
-        return null;
-    }
 
     int? _hashCode;
     /// (true) => 1, (false) => 0
@@ -70,58 +62,122 @@ class StateTuple {
     }
 
     @override
-    bool operator ==(Object other) => other is StateTuple && other.hashCode == hashCode && other.width == width;
+    bool operator ==(Object other) => other is StateTuple && other.width == width && other.hashCode == hashCode;
+
+
 }
 
-typedef BatchFunction = void Function(BooleanStateValue stateValue, bool value);
+class StateAction {
+    final Map<ManagedValue, bool> registeredStateValues;
+
+    StateAction({
+        required this.registeredStateValues
+    });
+}
+class _StateAction {
+    // <position, value>
+    final Map<int, bool> registeredStateValues;
+
+    _StateAction({
+        required this.registeredStateValues
+    });
+
+    static _StateAction? create({
+        required Map<ManagedValue, int> positions,
+        required StateAction stateAction
+    }) {
+        if (positions.isEmpty || stateAction.registeredStateValues.isEmpty) return null;
+        List<MapEntry<ManagedValue, bool>> entries = stateAction.registeredStateValues.entries.toList();
+        Map<int, bool> rStateValues = {};
+        for (int i = 0; i < entries.length; i++) {
+            assert(positions.containsKey(entries[i].key));
+            if (!positions.containsKey(entries[i].key)) return null;
+            rStateValues[positions[entries[i].key]!] = entries[i].value;
+        }
+        return _StateAction(registeredStateValues: rStateValues);
+    }
+
+    int? _mask;
+    int get mask {
+        if (_mask != null) return _mask!;
+        int mask = 0;
+        List<int> masks = registeredStateValues.keys.map(
+            (position) => 1 << position
+        ).toList(growable: false);
+        masks.forEach((m) => mask = mask | m);
+        _mask = mask;
+        return mask;
+    }
+
+    int? _hash;
+    int get hash {
+        if (_hash != null) return _hash!;
+        List<int> hashes = [];
+        registeredStateValues.forEach(
+            (key, value) {
+                if (value) {
+                    hashes.add(1 << key);
+                }
+            }
+        );
+        int hash = hashes.length == 0 ? 0 : hashes.reduce((value, element) => value & element);
+        _hash = hash;
+        return hash;
+    }
+
+    bool _shouldRun(StateTuple st) {
+        int masked = mask & st.hashCode;
+        return masked == hash;
+    }
+}
+
 class BooleanStateManager {
-    final void Function() notifyListeners;
-    final HashSet<BooleanStateValue> _managedValues;
-    // UnmodifiableListView<BooleanStateValue> get managedValues => UnmodifiableListView<BooleanStateValue>(_managedValues);
+    final void Function() _notifyListeners;
+    final List<BooleanStateValue> _managedValues = [];
+    List<BooleanStateValue> get managedValue => UnmodifiableListView(_managedValues);
+
+    final List<_StateAction> _stateActions = [];
+
     final Map<StateTuple, bool> _checkedStates = {};
 
     late StateTuple _currentState;
     StateTuple get currentState => _currentState;
 
     BooleanStateManager(
-        this.notifyListeners,
-        List<BooleanStateValue> managedValues,
-        // TODO: void Function(BooleanTuple) stateActions,
-    ): _managedValues = HashSet.of(managedValues) {
-        assert(_managedValues.isNotEmpty);
-        int i = 0;
-        _managedValues.forEach(
-            (stateVal) {
-                assert(stateVal._manager == null);
-                stateVal._manager = this;
-                stateVal._position = i;
-                i++;
-            }
-        );
+        void Function() notifyListeners,
+        List<ManagedValue> managedValues,
+        [List<StateAction>? stateActions]
+    ): _notifyListeners = notifyListeners {
+        Map<ManagedValue, int> positions = {};
+        for (int i = 0; i < managedValues.length; i++) {
+            positions[managedValues[i]] = i;
+            _managedValues.add(
+                BooleanStateValue._(
+                    managedValue: managedValues[i],
+                    position: i,
+                    manager: this
+                )
+            );
+        }
         assert(_checkIfValidInitialState());
-        _currentState = _buildStateRepresentation(null);
+        _currentState = StateTuple._fromList(_managedValues, this);
+
+        if (stateActions != null) {
+            stateActions.forEach(
+                (action) {
+                    _StateAction? sa = _StateAction.create(positions: positions, stateAction: action);
+                    if (sa != null) {
+                        _stateActions.add(sa);
+                    }
+                }
+            );
+        }
     }
 
     /// debug checking if initial state is valid
     bool _checkIfValidInitialState() {
         return _isAllowed(
-            StateTuple._fromSet(_managedValues)
-        );
-    }
-
-    StateTuple _buildStateRepresentation(Map<int, bool>? updates) {
-        int i = 0;
-        return StateTuple._fromList(
-            _managedValues.map(
-                (managedValue) {
-                    late bool value;
-                    if (updates != null && updates.containsKey(i)) value = updates[i]!;
-                    value = managedValue.value;
-                    i++;
-                    return value;
-                }
-            ).toList(),
-            _managedValues
+            StateTuple._fromList(_managedValues, this)
         );
     }
 
@@ -135,86 +191,61 @@ class BooleanStateManager {
         return isGood;
     }
 
-    void updateState(BooleanStateValue stateValue, bool newValue) {
-        assert(_managedValues[stateValue.position] != null);
-        assert(identical(_managedValues[stateValue.position], stateValue));
-        if (stateValue.value == newValue || !identical(_managedValues[stateValue.position!], stateValue)) return;
-
-        StateTuple newState = _buildStateRepresentation({stateValue.position: newValue});
-
-        if (_isAllowed(newState)) {
-            stateValue._value = newValue;
-            notifyListeners();
-        }
+    void notify() {
+        _notifyListeners();
+        // TODO: run state actions for current state
     }
 
-    Tuple2<BatchFunction, VoidFunction> batchUpdateState() {
-        Map<int?, bool> updates = {};
+    // TODO: updating state
+}
 
-        BatchFunction bf = (BooleanStateValue stateValue, bool value) {
-            assert(stateValue != null);
-            assert(value != null);
-            assert(_managedValues[stateValue.position!] != null);
-            assert(identical(_managedValues[stateValue.position!], stateValue));
-            if (value == null || !identical(_managedValues[stateValue.position!], stateValue)) return;
-            updates[stateValue.position] = value;
-        };
-        void Function() close = () {
-            StateTuple newState = _buildStateRepresentation(updates);
-            if (_isAllowed(newState)) {
-                updates.entries.forEach(
-                    (entry) => _managedValues[entry.key!]._value = entry.value
-                );
-                notifyListeners();
-            }
-        };
-        return Tuple2(bf, close);
-    }
+class ManagedValue {
+    final bool Function(StateTuple currentState) canBeTrue;
+    final bool Function(StateTuple currentState) canBeFalse;
+    final bool value;
 
-    void forceUpdateState(BooleanStateValue stateValue, bool newValue) {
-        if (newValue == null || stateValue.value == newValue) return;
-
-        // TODO: search for a valid state where stateValue.value == newValue
-    }
-
-    Tuple2<BatchFunction, VoidFunction>  forceBatchUpdateState() {
-        Map<int, bool> updates = {};
-        // TODO:
-    }
-
+    ManagedValue({
+        required this.canBeFalse,
+        required this.canBeTrue,
+        required this.value
+    });
 }
 
 class BooleanStateValue {
     final bool Function(StateTuple currentState) _canBeTrue;
     final bool Function(StateTuple currentState) _canBeFalse;
-    final bool initialValue;
+    final bool _initialValue;
     bool _value;
     bool get value => _value;
     // only accessible BooleanStateManager
-    int? _position;
-    int? get position => _position;
-    BooleanStateManager? _manager;
+    final int _position;
+    final BooleanStateManager _manager;
 
-    BooleanStateValue(
-        bool value,
-        bool Function(StateTuple currentState) canBeTrue,
-        bool Function(StateTuple currentState) canBeFalse,
-    ):  _value = value,
-        initialValue = value,
-        _canBeFalse = canBeFalse,
-        _canBeTrue = canBeTrue;
+    BooleanStateValue._({
+        required ManagedValue managedValue,
+        required int position,
+        required BooleanStateManager manager
+    }): _position = position,
+        _manager = manager,
+        _value = managedValue.value,
+        _initialValue = managedValue.value,
+        _canBeFalse = managedValue.canBeFalse,
+        _canBeTrue = managedValue.canBeTrue;
 
     bool _isAllowed(StateTuple state)  {
-        if (state[this] == null) {
-            return false;
-        }
-        return state[this]! ? _canBeTrue(state) : _canBeFalse(state);
+        return state._values[_position] ? _canBeTrue(state) : _canBeFalse(state);
     }
 
-    @override
-    int get hashCode => identityHashCode(this);
+    bool? getFromState(StateTuple stateTuple) {
+        assert(stateTuple._manager == _manager, 'StateTuple must be from the same state manager.');
+        if (stateTuple._manager != _manager) return null;
+        return stateTuple._values[_position];
+    }
 
-    @override
-    bool operator ==(Object other) => other is BooleanStateValue && identical(this, other);
+    // @override
+    // int get hashCode => identityHashCode(this);
+
+    // @override
+    // bool operator ==(Object other) => other is BooleanStateValue && identical(this, other);
 
 }
