@@ -55,7 +55,7 @@ class BooleanStateManager {
                 bool error = stateGraph.checkIfTransitionMaySucceed(transition());
                 stateTransitionError = stateTransitionError || error;
                 assert(error, 'State transition at index $i will never succeed.');
-                // TODO: check if more than one end state is possible
+                // TODO: Check if more than one end state is possible. See TODO in _StateGraph above _StateGraph._buildAdjacencyList.
                 i++;
             }
         );
@@ -114,6 +114,8 @@ class BooleanStateManager {
                 }
             }
         );
+
+        // TODO: If _currentState is the correct state to transition to, should we re-run the actions?
         assert(possibleStates.isNotEmpty, 'Invalid state transition or the current state is the only state that the transition function can transition to.');
         if (possibleStates.isEmpty) return;
         if (possibleStates.length == 1) {
@@ -144,7 +146,6 @@ class BooleanStateManager {
 class _StateGraph {
     final List<ManagedValue> _managedValues;
 
-    // TODO: replace HashSet.containsKey with a method that returns true if _ManagedStateAction._shouldRun returns true
     final HashMap<StateTuple, List<Tuple2<StateTuple, int>>> _validStates;
     final HashSet<StateTuple> _invalidStates;
 
@@ -190,6 +191,8 @@ class _StateGraph {
 
         // TODO: After the adjacency list is created, we can search it for equidistant states from a given state.
         // TODO: Is this information useful?
+        // A transition function may be valid for both of those equidistant states, making things indeterminate in _applyStateUpdate.
+        // A transition function may never run on the given state, so there being equidistant states is not necessarily an error.
         _StateGraph._buildAdjacencyList(
             managedValues: managedValues,
             validStates: validAndInvalidStates.item1
