@@ -21,7 +21,7 @@ class BooleanStateManager {
 
     final List<_ManagedStateAction> _managedStateActions = [];
 
-    HashSet<Map<ManagedValue, bool> Function()> _stateTransitions = HashSet();
+    HashSet<StateTransitionFunction> _stateTransitions = HashSet();
 
     // TODO: replace HashSet.containsKey with a method that returns true if _ManagedStateAction._shouldRun returns true
     final HashSet<StateTuple> _validStates = HashSet();
@@ -34,7 +34,7 @@ class BooleanStateManager {
         required void Function() notifyListeners,
         required List<BooleanStateValue> managedValues,
         List<StateAction>? stateActions,
-        List<Map<ManagedValue, bool> Function()>? stateTransitions,
+        List<StateTransitionFunction>? stateTransitions,
     }): _notifyListeners = notifyListeners {
         // Setup managed values with correct position information.
         for (int i = 0; i < managedValues.length; i++) {
@@ -53,18 +53,21 @@ class BooleanStateManager {
 
         // Create state transitions
         if (stateTransitions != null) {
+            int i = 0;
             stateTransitions.forEach(
                 (transition) {
                     _stateTransitions.add(transition);
                     // check if possible
-                    assert(_checkIfTransitionMaySucceed(transition()));
+                    assert(_checkIfTransitionMaySucceed(transition()), 'State transition at index $i will never succeed.');
                     // TODO: check if more than one end state is possible
+                    i++;
                 }
             );
 
         }
 
         // Create state actions.
+        // TODO: Check for transition conflicts as a result of multiple actions running.
         if (stateActions != null) {
             stateActions.forEach(
                 (action) {
@@ -104,7 +107,6 @@ class BooleanStateManager {
     /// Debug checking if it is possible for a state action to run.
     bool _checkIfActionMayRun(_ManagedStateAction stateAction) {
         _findAllGoodState();
-        // TODO: This may be sped up to amortized constant time if the HashMap of _validStates is extended to work similar to _ManagedStateAction._shouldRun.
         return _validStates.any((state) => stateAction._shouldRun(state));
     }
 
@@ -157,7 +159,7 @@ class BooleanStateManager {
     }
 
 
-    // TODO: updating state
+    // TODO: Updating state
     Map<int, bool>? _createUpdate(List<Map<ManagedValue, bool>> updates) {
         Map<int, bool> mergedUpdate = {};
         bool conflictFound = false;
@@ -172,6 +174,9 @@ class BooleanStateManager {
         }
         return mergedUpdate;
     }
+    // TODO: Find a valid state for a given update.
+
+    // TODO: given a valid update, update _currentState, notify listeners, run actions
 }
 
 class _ManagedStateAction {
@@ -182,6 +187,9 @@ class _ManagedStateAction {
     final Map<int, bool> registeredStateValues;
 
     // An action to run.
+    // TODO: Should this optionally return a state transition?
+    // If it does return a state transition, should we ignore it if its not registered?
+    // If we ignore the state transition, there should be a debug check to assert that no transitions will be ignored.
     final void Function() action;
 
 
