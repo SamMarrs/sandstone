@@ -159,6 +159,7 @@ class BooleanStateManager {
                         update.addAll(transitionUpdate);
                     }
                 );
+                _applyStateUpdate(update);
             }
         );
     }
