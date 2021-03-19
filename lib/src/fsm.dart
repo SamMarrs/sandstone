@@ -259,10 +259,6 @@ class _StateGraph {
             return null;
         }
 
-        // TODO: After the adjacency list is created, we can search it for equidistant states from a given state.
-        // TODO: Is this information useful?
-        // A transition function may be valid for both of those equidistant states, making things indeterminate in _applyStateUpdate.
-        // A transition function may never run on the given state, so there being equidistant states is not necessarily an error.
         _StateGraph._buildAdjacencyList(
             managedValues: managedValues,
             validStates: validAndInvalidStates.item1
@@ -399,14 +395,9 @@ class _ManagedStateAction {
     /// Used to check if this action should run for a given state.
     final Map<int, bool> registeredStateValues;
 
-    // An action to run.
-    // TODO: Should this optionally return a state transition?
-    // If it does return a state transition, should we ignore it if its not registered?
-    // If we ignore the state transition, there should be a debug check to assert that no transitions will be ignored.
     final StateTransitionFunction? Function() action;
 
     final List<StateTransitionFunction> possibleTransitions;
-
 
     _ManagedStateAction({
         required this.registeredStateValues,
