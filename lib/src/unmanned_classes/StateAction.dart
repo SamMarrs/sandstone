@@ -1,3 +1,4 @@
+import '../typedefs.dart';
 import 'BooleanStateValue.dart';
 
 class StateAction {
@@ -6,12 +7,15 @@ class StateAction {
 
     final Map<BooleanStateValue, bool> registeredStateValues;
 
-    final void Function() action;
+    final StateTransitionFunction? Function() action;
     // final List<Map<ManagedValue, bool>> stateUpdates
+
+    final List<StateTransitionFunction> possibleTransitions;
 
     StateAction({
         required this.registeredStateValues,
         required this.action,
-        this.actionName
+        this.actionName,
+        this.possibleTransitions = const []
     });
 }

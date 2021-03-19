@@ -55,7 +55,6 @@ class BooleanStateManager {
                 bool error = stateGraph.checkIfTransitionMaySucceed(transition());
                 stateTransitionError = stateTransitionError || error;
                 assert(error, 'State transition at index $i will never succeed.');
-                // TODO: Check if more than one end state is possible. See TODO in _StateGraph above _StateGraph._buildAdjacencyList.
                 i++;
             }
         );
@@ -68,7 +67,10 @@ class BooleanStateManager {
         if (stateActions != null) {
             stateActions.forEach(
                 (action) {
-                    _ManagedStateAction? sa = _ManagedStateAction.create(positions: _booleanStateValueToIndex, stateAction: action);
+                    _ManagedStateAction? sa = _ManagedStateAction.create(
+                        positions: _booleanStateValueToIndex,
+                        stateAction: action
+                    );
                     if (sa != null) {
                         managedStateActions.add(sa);
                         assert(stateGraph.checkIfActionMayRun(sa), 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
@@ -77,6 +79,17 @@ class BooleanStateManager {
             );
         }
         bsm._managedStateActions = managedStateActions;
+        _checkForActionTransitionConflicts(
+            stateTransitions: stateTransitions,
+            stateActions: managedStateActions
+        );
+    }
+
+    static void _checkForActionTransitionConflicts({
+        required List<_ManagedStateAction> stateActions,
+        required HashSet<StateTransitionFunction> stateTransitions
+    }) {
+        // TODO:
     }
 
     void _notify() {
@@ -84,9 +97,32 @@ class BooleanStateManager {
         Future.delayed(
             Duration.zero,
             () {
+                List<StateTransitionFunction> transitions = [];
                 _managedStateActions.forEach(
                     (action) {
-                        if (action._shouldRun(_stateGraph._currentState)) action.action();
+                        if (action._shouldRun(_stateGraph._currentState)) {
+                            StateTransitionFunction? transition = action.action();
+                            if (transition != null) {
+                                assert(_stateTransitions.contains(transition));
+                                transitions.add(transition);
+                            }
+                        }
+                    }
+                );
+
+                bool doesOverride(Map<ManagedValue, bool> a, Map<ManagedValue, bool> b) {
+                    return a.entries.any((element) => b.containsKey(element.key) && b[element.key] != element.value);
+                }
+
+                List<Map<ManagedValue, bool>> updates = [];
+                transitions.forEach(
+                    (transition) => updates.add(transition())
+                );
+                Map<ManagedValue, bool> update = {};
+                updates.forEach(
+                    (transitionUpdate) {
+                        assert(!doesOverride(update, transitionUpdate), 'Conflicting transitions as a result of state actions.');
+                        update.addAll(transitionUpdate);
                     }
                 );
             }
@@ -101,7 +137,6 @@ class BooleanStateManager {
     }
 
     void _applyStateUpdate(Map<ManagedValue, bool> update) {
-        // TODO: Find state with the fewest changes.
         List<Tuple2<StateTuple, int>> possibleStates = [];
         int mask = Utils.maskFromMap<ManagedValue>(update, (key) => key._position);
         int subHash = Utils.hashFromMap<ManagedValue>(update, (key) => key._position);
@@ -323,6 +358,7 @@ class _StateGraph {
 
 class _ManagedStateAction {
     final String? actionName;
+
     /// A map of _ManagedValue indices to a value for that _ManagedValue.
     ///
     /// Used to check if this action should run for a given state.
@@ -332,13 +368,16 @@ class _ManagedStateAction {
     // TODO: Should this optionally return a state transition?
     // If it does return a state transition, should we ignore it if its not registered?
     // If we ignore the state transition, there should be a debug check to assert that no transitions will be ignored.
-    final void Function() action;
+    final StateTransitionFunction? Function() action;
+
+    final List<StateTransitionFunction> possibleTransitions;
 
 
     _ManagedStateAction({
         required this.registeredStateValues,
         required this.action,
-        this.actionName
+        this.actionName,
+        this.possibleTransitions = const []
     });
 
     static _ManagedStateAction? create({
@@ -357,7 +396,8 @@ class _ManagedStateAction {
         return _ManagedStateAction(
             registeredStateValues: rStateValues,
             action: stateAction.action,
-            actionName: stateAction.actionName
+            actionName: stateAction.actionName,
+            possibleTransitions: stateAction.possibleTransitions
         );
     }
 
