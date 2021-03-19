@@ -73,23 +73,57 @@ class BooleanStateManager {
                     );
                     if (sa != null) {
                         managedStateActions.add(sa);
+                        assert(_checkIfValidTransitionsInAction(action: sa, stateTransitions: stateTransitions));
                         assert(stateGraph.checkIfActionMayRun(sa), 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
                     }
                 }
             );
         }
         bsm._managedStateActions = managedStateActions;
-        _checkForActionTransitionConflicts(
-            stateTransitions: stateTransitions,
-            stateActions: managedStateActions
+        assert(
+            _checkForActionTransitionConflicts(
+                stateTransitions: stateTransitions,
+                stateActions: managedStateActions,
+                stateGraph: stateGraph
+            )
         );
     }
 
-    static void _checkForActionTransitionConflicts({
-        required List<_ManagedStateAction> stateActions,
+    static bool _checkIfValidTransitionsInAction({
+        required _ManagedStateAction action,
         required HashSet<StateTransitionFunction> stateTransitions
+    }) => action.possibleTransitions.every((element) => stateTransitions.contains(element));
+
+    static bool _checkForActionTransitionConflicts({
+        required List<_ManagedStateAction> stateActions,
+        required HashSet<StateTransitionFunction> stateTransitions,
+        required _StateGraph stateGraph
     }) {
-        // TODO:
+        stateGraph._validStates.keys.forEach(
+            (state) {
+                int potentialConflicts = 0;
+                List<_ManagedStateAction> possibleActions = [];
+                stateActions.forEach(
+                    (action) {
+                        if (action._shouldRun(state)) {
+                            possibleActions.add(action);
+                        }
+                    }
+                );
+
+                // TODO:
+
+                if (potentialConflicts > 0) {
+                    print('There are $potentialConflicts potential transition conflict due to actions running on state ${state.hashCode}');
+                }
+
+            }
+        );
+
+
+        // I only want this to run in debug mode.
+        // Since this only produces warnings, not errors, the assertion needs to succeed.
+        return true;
     }
 
     void _notify() {
@@ -103,7 +137,7 @@ class BooleanStateManager {
                         if (action._shouldRun(_stateGraph._currentState)) {
                             StateTransitionFunction? transition = action.action();
                             if (transition != null) {
-                                assert(_stateTransitions.contains(transition));
+                                assert(_stateTransitions.contains(transition) && action.possibleTransitions.contains(transition));
                                 transitions.add(transition);
                             }
                         }
