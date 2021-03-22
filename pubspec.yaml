@@ -1,5 +1,5 @@
-name: fsm
-description: A new Flutter package project.
+name: flutter_fsm
+description: A new state management solution
 version: 0.0.1
 author:
 homepage:
