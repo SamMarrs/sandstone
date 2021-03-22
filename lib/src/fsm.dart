@@ -1,7 +1,7 @@
 import 'dart:collection';
 import 'dart:math' as Math;
 
-import 'package:fsm/src/unmanned_classes/utils.dart';
+import './unmanned_classes/utils.dart';
 import 'package:tuple/tuple.dart';
 
 import './typedefs.dart';
@@ -12,7 +12,7 @@ import 'unmanned_classes/StateAction.dart';
 
 // TODO: How should data be passed to actions within stateActions
 
-class BooleanStateManager {
+class StateManager {
     final void Function() _notifyListeners;
 
     late final _StateGraph _stateGraph;
@@ -23,18 +23,18 @@ class BooleanStateManager {
 
     List<ManagedValue> get managedValues => _stateGraph._managedValues;
 
-    BooleanStateManager._({
+    StateManager._({
         required void Function() notifyListener,
     }): _notifyListeners = notifyListener;
 
     // Factory constructors can no longer return null values with null safety.
-    static BooleanStateManager? create({
+    static StateManager? create({
         required void Function() notifyListeners,
         required List<BooleanStateValue> managedValues,
         required List<StateTransitionFunction> stateTransitions,
         List<StateAction>? stateActions,
     }) {
-        BooleanStateManager bsm = BooleanStateManager._(notifyListener: notifyListeners);
+        StateManager bsm = StateManager._(notifyListener: notifyListeners);
         Map<BooleanStateValue, int> _booleanStateValueToIndex = {};
         _StateGraph? stateGraph = _StateGraph.create(
             manager: bsm,
@@ -232,7 +232,7 @@ class _StateGraph {
         _currentState = currentState;
 
     static _StateGraph? create({
-        required BooleanStateManager manager,
+        required StateManager manager,
         required List<BooleanStateValue> stateValues,
         required Map<BooleanStateValue, int> valueToIndex
     }) {
@@ -273,7 +273,7 @@ class _StateGraph {
 
     static Tuple2<HashMap<StateTuple, List<Tuple2<StateTuple, int>>>, HashSet<StateTuple>> _findAllGoodState({
         required List<ManagedValue> managedValues,
-        required BooleanStateManager manager
+        required StateManager manager
     }) {
         HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates = HashMap();
         HashSet<StateTuple> invalidStates = HashSet();
@@ -455,12 +455,12 @@ class ManagedValue {
     bool get value => _value;
     // only accessible BooleanStateManager
     final int _position;
-    final BooleanStateManager _manager;
+    final StateManager _manager;
 
     ManagedValue._({
         required BooleanStateValue managedValue,
         required int position,
-        required BooleanStateManager manager
+        required StateManager manager
     }): _position = position,
         _manager = manager,
         _value = managedValue.value,
@@ -490,7 +490,7 @@ class ManagedValue {
 class StateTuple {
     final List<bool> _values = [];
     final List<ManagedValue> _valueReferences;
-    final BooleanStateManager _manager;
+    final StateManager _manager;
 
     StateTuple._fromList(
         this._valueReferences,
@@ -510,7 +510,7 @@ class StateTuple {
 
     static StateTuple? _fromHash(
         List<ManagedValue> valueReferences,
-        BooleanStateManager manager,
+        StateManager manager,
         int stateHash
     ) {
         assert(stateHash > 0);
