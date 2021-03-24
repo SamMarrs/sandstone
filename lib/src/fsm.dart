@@ -27,6 +27,7 @@ class StateManager {
         required void Function() notifyListener,
     }): _notifyListeners = notifyListener;
 
+    // TODO: Possibly make async so the stateTransitions can be async
     // Factory constructors can no longer return null values with null safety.
     static StateManager? create({
         required void Function() notifyListeners,
@@ -176,6 +177,11 @@ class StateManager {
         int mask = Utils.maskFromMap<ManagedValue>(update, (key) => key._position);
         int subHash = Utils.hashFromMap<ManagedValue>(update, (key) => key._position);
 
+        // If the currentState is still valid, the update is a duplicate, and should be ignored.
+        if ((_stateGraph._currentState.hashCode & mask) == subHash) {
+            return;
+        }
+
         _stateGraph.getCurrentAdjacent().forEach(
             (stateDiff) {
                 StateTuple state = stateDiff.item1;
@@ -185,7 +191,6 @@ class StateManager {
             }
         );
 
-        // TODO: If _currentState is the correct state to transition to, should we re-run the actions?
         assert(possibleStates.isNotEmpty, 'Invalid state transition or the current state is the only state that the transition function can transition to.');
         if (possibleStates.isEmpty) return;
         if (possibleStates.length == 1) {
