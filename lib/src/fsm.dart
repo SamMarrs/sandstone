@@ -4,8 +4,6 @@ import 'dart:math' as Math;
 import './unmanned_classes/utils.dart';
 import 'package:tuple/tuple.dart';
 
-import './typedefs.dart';
-
 import 'unmanned_classes/BooleanStateValue.dart';
 import 'unmanned_classes/StateAction.dart';
 
@@ -19,9 +17,11 @@ class StateManager {
 
     late final List<_ManagedStateAction> _managedStateActions;
 
-    late HashSet<StateTransitionFunction> _stateTransitions;
+    late HashSet<Map<BooleanStateValue, bool>> _stateTransitions;
 
     List<ManagedValue> get managedValues => _stateGraph._managedValues;
+
+    Map<BooleanStateValue, int> _booleanStateValueToIndex = {};
 
     StateManager._({
         required void Function() notifyListener,
@@ -32,35 +32,36 @@ class StateManager {
     static StateManager? create({
         required void Function() notifyListeners,
         required List<BooleanStateValue> managedValues,
-        required List<StateTransitionFunction> stateTransitions,
+        required List<Map<BooleanStateValue, bool>> stateTransitions,
         List<StateAction>? stateActions,
     }) {
         StateManager bsm = StateManager._(notifyListener: notifyListeners);
-        Map<BooleanStateValue, int> _booleanStateValueToIndex = {};
+
         _StateGraph? stateGraph = _StateGraph.create(
             manager: bsm,
             stateValues: managedValues,
-            valueToIndex: _booleanStateValueToIndex
+            valueToIndex: bsm._booleanStateValueToIndex
         );
         if (stateGraph == null) return null;
         bsm._stateGraph = stateGraph;
 
         // Create state transitions
-        HashSet<StateTransitionFunction> stateTransitions = HashSet();
+        HashSet<Map<BooleanStateValue, bool>> _stateTransitions = HashSet();
         bool stateTransitionError = false;
         int i = 0;
         stateTransitions.forEach(
             (transition) {
-                stateTransitions.add(transition);
+                _stateTransitions.add(transition);
                 // check if possible
-                bool error = stateGraph.checkIfTransitionMaySucceed(transition());
+                assert(bsm._checkIfRegisteredTransition(transition), 'State transition at index $i contains unregistered state values');
+                assert(stateGraph.checkIfTransitionMaySucceed(bsm._transitionConversion(transition)), 'State transition at index $i will never succeed.');
+                bool error = bsm._checkIfRegisteredTransition(transition) && stateGraph.checkIfTransitionMaySucceed(bsm._transitionConversion(transition));
                 stateTransitionError = stateTransitionError || error;
-                assert(error, 'State transition at index $i will never succeed.');
                 i++;
             }
         );
         if (stateTransitionError) return null;
-        bsm._stateTransitions = stateTransitions;
+        bsm._stateTransitions = _stateTransitions;
 
         // Create state actions.
         // TODO: Check for transition conflicts as a result of multiple actions running.
@@ -69,12 +70,12 @@ class StateManager {
             stateActions.forEach(
                 (action) {
                     _ManagedStateAction? sa = _ManagedStateAction.create(
-                        positions: _booleanStateValueToIndex,
+                        positions: bsm._booleanStateValueToIndex,
                         stateAction: action
                     );
                     if (sa != null) {
                         managedStateActions.add(sa);
-                        assert(_checkIfValidTransitionsInAction(action: sa, stateTransitions: stateTransitions));
+                        assert(_checkIfValidTransitionsInAction(action: sa, stateTransitions: _stateTransitions));
                         assert(stateGraph.checkIfActionMayRun(sa), 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
                     }
                 }
@@ -83,21 +84,35 @@ class StateManager {
         bsm._managedStateActions = managedStateActions;
         assert(
             _checkForActionTransitionConflicts(
-                stateTransitions: stateTransitions,
+                stateTransitions: _stateTransitions,
                 stateActions: managedStateActions,
                 stateGraph: stateGraph
             )
         );
     }
 
+    bool _checkIfRegisteredTransition(Map<BooleanStateValue, bool> transition) {
+        return transition.entries.every((element) => _booleanStateValueToIndex.containsKey(element.key));
+    }
+
+    Map<ManagedValue, bool> _transitionConversion(Map<BooleanStateValue, bool> transition) {
+        Map<ManagedValue, bool> map = {};
+        transition.forEach(
+            (key, value) {
+                map[managedValues[_booleanStateValueToIndex[key]!]] = value;
+            }
+        );
+        return map;
+    }
+
     static bool _checkIfValidTransitionsInAction({
         required _ManagedStateAction action,
-        required HashSet<StateTransitionFunction> stateTransitions
+        required HashSet<Map<BooleanStateValue, bool>> stateTransitions
     }) => action.possibleTransitions.every((element) => stateTransitions.contains(element));
 
     static bool _checkForActionTransitionConflicts({
         required List<_ManagedStateAction> stateActions,
-        required HashSet<StateTransitionFunction> stateTransitions,
+        required HashSet<Map<BooleanStateValue, bool>> stateTransitions,
         required _StateGraph stateGraph
     }) {
         stateGraph._validStates.keys.forEach(
@@ -127,16 +142,24 @@ class StateManager {
         return true;
     }
 
+    bool? getFromState(StateTuple stateTuple, BooleanStateValue value) {
+        assert(stateTuple._manager == this, 'StateTuple must be from the same state manager.');
+        assert(_booleanStateValueToIndex.containsKey(value), 'BooleanStateValue must have been registered with this state manager.');
+        if (stateTuple._manager != this || !_booleanStateValueToIndex.containsKey(value)) return null;
+        // Performed null check in previous if statement.
+        return stateTuple._values[_booleanStateValueToIndex[value]!];
+    }
+
     void _notify() {
         _notifyListeners();
         Future.delayed(
             Duration.zero,
             () {
-                List<StateTransitionFunction> transitions = [];
+                List<Map<BooleanStateValue, bool>> transitions = [];
                 _managedStateActions.forEach(
                     (action) {
                         if (action._shouldRun(_stateGraph._currentState)) {
-                            StateTransitionFunction? transition = action.action();
+                            Map<BooleanStateValue, bool>? transition = action.action();
                             if (transition != null) {
                                 assert(_stateTransitions.contains(transition) && action.possibleTransitions.contains(transition));
                                 transitions.add(transition);
@@ -151,7 +174,7 @@ class StateManager {
 
                 List<Map<ManagedValue, bool>> updates = [];
                 transitions.forEach(
-                    (transition) => updates.add(transition())
+                    (transition) => updates.add(_transitionConversion(transition))
                 );
                 Map<ManagedValue, bool> update = {};
                 updates.forEach(
@@ -165,10 +188,10 @@ class StateManager {
         );
     }
 
-    void updateState(StateTransitionFunction transitionFunction) {
-        assert(_stateTransitions.contains(transitionFunction), 'Unknown transition function.');
-        if (_stateTransitions.contains(transitionFunction)) {
-            _applyStateUpdate(transitionFunction());
+    void updateState(Map<BooleanStateValue, bool> transition) {
+        assert(_stateTransitions.contains(transition), 'Unknown transition.');
+        if (_stateTransitions.contains(transition)) {
+            _applyStateUpdate(_transitionConversion(transition));
         }
     }
 
@@ -226,15 +249,19 @@ class _StateGraph {
 
     StateTuple _currentState;
 
+    final StateManager _manager;
+
     _StateGraph._({
         required List<ManagedValue> managedValues,
         required HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates,
         required HashSet<StateTuple> invalidStates,
         required StateTuple currentState,
+        required StateManager manager
     }): _managedValues = managedValues,
         _validStates = validStates,
         _invalidStates = invalidStates,
-        _currentState = currentState;
+        _currentState = currentState,
+        _manager = manager;
 
     static _StateGraph? create({
         required StateManager manager,
@@ -273,6 +300,7 @@ class _StateGraph {
             validStates: validAndInvalidStates.item1,
             invalidStates: validAndInvalidStates.item2,
             currentState: currentState,
+            manager: manager
         );
     }
 
@@ -376,7 +404,10 @@ class _StateGraph {
         int mask = Utils.maskFromMap<ManagedValue>(transitionUpdate, (key) => key._position);
         int subHash = Utils.hashFromMap<ManagedValue>(transitionUpdate, (key) => key._position);
         _validStates.keys.any(
-            (state) => (state.hashCode & mask) == subHash
+            (state) {
+				int masked = (state.hashCode & mask);
+				return (state.hashCode & mask) == subHash;
+			}
         );
         return maySucceed;
     }
@@ -400,9 +431,9 @@ class _ManagedStateAction {
     /// Used to check if this action should run for a given state.
     final Map<int, bool> registeredStateValues;
 
-    final StateTransitionFunction? Function() action;
+    final Map<BooleanStateValue, bool>? Function() action;
 
-    final List<StateTransitionFunction> possibleTransitions;
+    final List<Map<BooleanStateValue, bool>> possibleTransitions;
 
     _ManagedStateAction({
         required this.registeredStateValues,
@@ -453,8 +484,8 @@ class _ManagedStateAction {
 }
 
 class ManagedValue {
-    final bool Function(StateTuple currentState) _canBeTrue;
-    final bool Function(StateTuple currentState) _canBeFalse;
+    final bool Function(StateTuple currentState, StateManager manager) _canBeTrue;
+    final bool Function(StateTuple currentState, StateManager manager) _canBeFalse;
     final bool _initialValue;
     bool _value;
     bool get value => _value;
@@ -474,7 +505,7 @@ class ManagedValue {
         _canBeTrue = managedValue.canBeTrue;
 
     bool _isAllowed(StateTuple state)  {
-        return state._values[_position] ? _canBeTrue(state) : _canBeFalse(state);
+        return state._values[_position] ? _canBeTrue(state, _manager) : _canBeFalse(state, _manager);
     }
 
     bool? getFromState(StateTuple stateTuple) {
@@ -518,7 +549,7 @@ class StateTuple {
         StateManager manager,
         int stateHash
     ) {
-        assert(stateHash > 0);
+        assert(stateHash >= 0);
         if (stateHash < 0) return null;
         int maxInt = (Math.pow(2, valueReferences.length) as int) - 1;
         assert(stateHash <= maxInt);
