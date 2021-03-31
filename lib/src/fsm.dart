@@ -55,7 +55,7 @@ class StateManager {
                 // check if possible
                 assert(bsm._checkIfRegisteredTransition(transition), 'State transition at index $i contains unregistered state values');
                 assert(stateGraph.checkIfTransitionMaySucceed(bsm._transitionConversion(transition)), 'State transition at index $i will never succeed.');
-                bool error = bsm._checkIfRegisteredTransition(transition) && stateGraph.checkIfTransitionMaySucceed(bsm._transitionConversion(transition));
+                bool error = !bsm._checkIfRegisteredTransition(transition) || !stateGraph.checkIfTransitionMaySucceed(bsm._transitionConversion(transition));
                 stateTransitionError = stateTransitionError || error;
                 i++;
             }
@@ -66,6 +66,7 @@ class StateManager {
         // Create state actions.
         // TODO: Check for transition conflicts as a result of multiple actions running.
         List<_ManagedStateAction> managedStateActions = [];
+		bool stateActionError = false;
         if (stateActions != null) {
             stateActions.forEach(
                 (action) {
@@ -75,12 +76,16 @@ class StateManager {
                     );
                     if (sa != null) {
                         managedStateActions.add(sa);
-                        assert(_checkIfValidTransitionsInAction(action: sa, stateTransitions: _stateTransitions));
-                        assert(stateGraph.checkIfActionMayRun(sa), 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
+						bool validTransition = _checkIfValidTransitionsInAction(action: sa, stateTransitions: _stateTransitions);
+                        assert(validTransition);
+						bool willRun = stateGraph.checkIfActionMayRun(sa);
+                        assert(willRun, 'A state action with ${sa.actionName == null ? 'hash ${sa.hash}' : 'name ${sa.actionName}'} will never run.');
+						stateActionError = stateActionError || !willRun || !validTransition;
                     }
                 }
             );
         }
+		if (stateActionError) return null;
         bsm._managedStateActions = managedStateActions;
         assert(
             _checkForActionTransitionConflicts(
@@ -89,6 +94,7 @@ class StateManager {
                 stateGraph: stateGraph
             )
         );
+		return bsm;
     }
 
     bool _checkIfRegisteredTransition(Map<BooleanStateValue, bool> transition) {
@@ -217,7 +223,7 @@ class StateManager {
         assert(possibleStates.isNotEmpty, 'Invalid state transition or the current state is the only state that the transition function can transition to.');
         if (possibleStates.isEmpty) return;
         if (possibleStates.length == 1) {
-            _stateGraph._currentState = possibleStates.first.item1;
+			_stateGraph.changeState(possibleStates.first.item1);
             _notify();
         } else {
             int minDiff = possibleStates[0].item2;
@@ -234,7 +240,7 @@ class StateManager {
                 'Multiple valid states with the same minimum difference to the current state. Try narrowing the conditions in the state transition function.'
             );
 
-            _stateGraph._currentState = minChangeStates.first;
+            _stateGraph.changeState(minChangeStates.first);
             _notify();
         }
     }
@@ -245,6 +251,7 @@ class _StateGraph {
     final List<ManagedValue> _managedValues;
 
     final HashMap<StateTuple, List<Tuple2<StateTuple, int>>> _validStates;
+    // fazing this out
     final HashSet<StateTuple> _invalidStates;
 
     StateTuple _currentState;
@@ -328,7 +335,7 @@ class _StateGraph {
                 }
             }
         }
-        return Tuple2(validStates, invalidStates);
+        return Tuple2(validStates, HashSet());
     }
 
     /// A state is only allowed if isAllowed is true for all managed values;
@@ -369,18 +376,24 @@ class _StateGraph {
                         StateTuple adjacentState = _entry.key;
                         List<Tuple2<StateTuple, int>> adjacentStateList = _entry.value;
                         // Check if the has already been done.
-                        if (adjacentState == primaryState || (checked.containsKey(primaryState) && checked[primaryState]!.contains(adjacentState))) {
+                        if (
+							adjacentState == primaryState
+							|| (
+								checked.containsKey(primaryState)
+								&& checked[primaryState]!.contains(adjacentState)
+							)
+						) {
                             return;
                         }
                         // Make note that this state combo has been done, so it doesn't occur again
                         if (!checked.containsKey(primaryState)) {
                             checked[primaryState] = HashSet();
-                            checked[primaryState]!.add(adjacentState);
                         }
+						checked[primaryState]!.add(adjacentState);
                         if (!checked.containsKey(adjacentState)) {
                             checked[adjacentState] = HashSet();
-                            checked[adjacentState]!.add(primaryState);
                         }
+						checked[adjacentState]!.add(primaryState);
 
                         int diff = findDifference(primaryState, adjacentState);
                         primaryStateList.add(Tuple2(adjacentState, diff));
@@ -403,9 +416,8 @@ class _StateGraph {
         bool maySucceed = false;
         int mask = Utils.maskFromMap<ManagedValue>(transitionUpdate, (key) => key._position);
         int subHash = Utils.hashFromMap<ManagedValue>(transitionUpdate, (key) => key._position);
-        _validStates.keys.any(
+        maySucceed = _validStates.keys.any(
             (state) {
-				int masked = (state.hashCode & mask);
 				return (state.hashCode & mask) == subHash;
 			}
         );
@@ -421,6 +433,16 @@ class _StateGraph {
 
         return _validStates[_currentState]!;
     }
+
+	void changeState(StateTuple newState) {
+		_currentState = newState;
+		newState._valueReferences.forEach(
+			(managedValue) {
+				managedValue._value = newState.values[managedValue._position];
+			}
+		);
+	}
+
 }
 
 class _ManagedStateAction {
@@ -574,15 +596,16 @@ class StateTuple {
     int? _hashCode;
     /// (true) => 1, (false) => 0
     ///
-    /// (true, false) => 10,
+    /// (true, false) => 01
     ///
-    /// (false, true, true, false, true) => 01101
+    /// (false, true, true, false, true) => 10110
+	/// Smallest index is least significant bit.
     @override
     int get hashCode {
         if (_hashCode == null) {
             _hashCode = 0;
-            for (int index = _values.length; index > 0; index--) {
-                if (_values[index - 1]) {
+            for (int index = 0; index < _values.length; index++) {
+                if (_values[index]) {
                     _hashCode = _hashCode! | (1 << index);
                 }
             }
