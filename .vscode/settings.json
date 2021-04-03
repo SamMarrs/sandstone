@@ -12,7 +12,7 @@
         "editor.tabCompletion": "onlySnippets",
         "editor.wordBasedSuggestions": false,
         "editor.tabSize": 4,
-        "editor.insertSpaces": true
+        "editor.insertSpaces": false
 
 	},
 	"cSpell.words": [
