@@ -1,116 +1,14 @@
 import 'dart:collection';
 import 'dart:math' as Math;
 
-import 'package:flutter/foundation.dart';
-
-import './unmanned_classes/StateTransition.dart';
+import './unmanaged_classes/StateTransition.dart';
 
 import './unmanned_classes/utils.dart';
 import 'package:tuple/tuple.dart';
 
-import 'unmanned_classes/BooleanStateValue.dart';
-import 'unmanned_classes/StateAction.dart';
-
-class _FSMTest {
-    static bool isValidInitialState(
-        StateTuple state,
-        HashMap<StateTuple, dynamic> validStates
-    ) {
-        bool result = validStates.containsKey(state);
-        assert(result, 'Initial state is invalid.');
-        return result;
-    }
-
-    static bool atLeastOneValidState(
-        HashMap<StateTuple, dynamic> validStates
-    ) {
-        bool result = validStates.isNotEmpty;
-        assert(result, 'State graph is empty.');
-        return result;
-    }
-
-    static bool noDuplicateTransitions(
-        HashSet<StateTransition> transitions,
-        StateTransition newTransition
-    ) {
-        String duplicate = '';
-        bool hasDuplicate = transitions.any(
-            (transition) {
-                if (mapEquals(transition.stateChanges, newTransition.stateChanges)) {
-                    duplicate = transition.name;
-                    return true;
-                }
-                return false;
-            }
-        );
-        assert(!hasDuplicate, 'Duplicate transitions found with names "$duplicate" and "${newTransition.name}".');
-        return !hasDuplicate;
-    }
-
-    static bool stateTransitionValuesNotEmpty(
-        StateTransition transition
-    ) {
-        bool isNotEmpty = transition.stateChanges.isNotEmpty;
-        assert(isNotEmpty, 'Transition called "${transition.name}" does not make any changes to the state.');
-        return isNotEmpty;
-    }
-
-    static bool checkIfAllStateValuesRegistered(
-        StateTransition transition,
-        Map<BooleanStateValue, int> booleanStateValueToIndex
-    ) {
-        bool allRegistered = transition.stateChanges.entries.every((element) => booleanStateValueToIndex.containsKey(element.key));
-        assert(allRegistered, 'Transition called "${transition.name}" contains BooleanStateValues that have not been registered with the state manager.');
-        return allRegistered;
-    }
-
-    static bool checkIfTransitionMaySucceed<K>(
-        String transitionName,
-        Map<K, bool> transition,
-        HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates,
-        int Function(K) keyToIntOffset
-    ) {
-        bool maySucceed = false;
-        int mask = Utils.maskFromMap<K>(transition, keyToIntOffset);
-        int subHash = Utils.hashFromMap<K>(transition, keyToIntOffset);
-        maySucceed = validStates.keys.any(
-            (state) {
-				return (state.hashCode & mask) == subHash;
-			}
-        );
-
-        assert(maySucceed, 'Transition called "$transitionName" will never succeed.');
-
-        return maySucceed;
-    }
-
-    static bool stateActionValuesNotEmpty(
-        StateAction action
-    ) {
-        bool isNotEmpty = action.registeredStateValues.isNotEmpty;
-        assert(isNotEmpty, 'Action called "${action.name}" did not match a valid state.');
-        return isNotEmpty;
-    }
-
-    static bool checkIfAllActionStateValuesRegistered(
-        StateAction  stateAction,
-        Map<BooleanStateValue, int> booleanStateValueToIndex
-    ) {
-        bool allRegistered = stateAction.registeredStateValues.entries.every((element) => booleanStateValueToIndex.containsKey(element.key));
-        assert(allRegistered, 'State action called "${stateAction.name}" contains BooleanStateValues that have not been registered with the state manager.');
-        return allRegistered;
-    }
-
-    static bool checkIfActionMayRun(
-        _ManagedStateAction action,
-        HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates,
-    ) {
-        bool shouldRun = validStates.keys.any((state) => action.shouldRun(state));
-        assert(shouldRun, 'State action with name "${action.actionName}" will never run');
-        return shouldRun;
-    }
-
-}
+import 'FSMTests.dart';
+import 'unmanaged_classes/BooleanStateValue.dart';
+import 'unmanaged_classes/StateAction.dart';
 
 class StateManager {
     final void Function() _notifyListeners;
@@ -156,14 +54,14 @@ class StateManager {
         stateTransitions.forEach(
             (transition) {
                 if (
-                    _FSMTest.noDuplicateTransitions(_stateTransitions, transition)
-                    && _FSMTest.checkIfAllStateValuesRegistered(transition, bsm._booleanStateValueToIndex)
+                    FSMTests.noDuplicateTransitions(_stateTransitions, transition)
+                    && FSMTests.checkIfAllStateValuesRegistered(transition, bsm._booleanStateValueToIndex)
                 ) {
-                    _FSMTest.stateTransitionValuesNotEmpty(transition);
+                    FSMTests.stateTransitionValuesNotEmpty(transition);
                     // If the transition can't succeed, it will be ignored.
                     // So, we don't need to prevent the initialization fo the manager if this check fails.
                     // But, we still need to add it to prevent future errors.
-                    _FSMTest.checkIfTransitionMaySucceed<ManagedValue>(
+                    FSMTests.checkIfTransitionMaySucceed<ManagedValue>(
                         transition.name,
                         bsm._transitionConversion(transition.stateChanges),
                         bsm._stateGraph._validStates,
@@ -185,14 +83,18 @@ class StateManager {
             stateActions.forEach(
                 (action) {
                     if (
-                        _FSMTest.checkIfAllActionStateValuesRegistered(action, bsm._booleanStateValueToIndex)
+                        FSMTests.checkIfAllActionStateValuesRegistered(action, bsm._booleanStateValueToIndex)
                     ) {
                         _ManagedStateAction? sa = _ManagedStateAction.create(
                             positions: bsm._booleanStateValueToIndex,
                             stateAction: action
                         );
                         if (sa != null) {
-                            _FSMTest.checkIfActionMayRun(sa, bsm._stateGraph._validStates);
+                            FSMTests.checkIfActionMayRun(
+                                bsm._stateGraph._validStates,
+                                (state) => sa.shouldRun(state),
+                                sa.name
+                            );
                             managedStateActions.add(sa);
                         }
                     } else {
@@ -384,8 +286,8 @@ class _StateGraph {
             validStates: validStates
         );
 
-        if (!_FSMTest.isValidInitialState(currentState, validStates)) return null;
-        if (!_FSMTest.atLeastOneValidState(validStates)) return null;
+        if (!FSMTests.isValidInitialState(currentState, validStates)) return null;
+        if (!FSMTests.atLeastOneValidState(validStates)) return null;
         return _StateGraph._(
             managedValues: managedValues,
             validStates: validStates,
@@ -490,7 +392,7 @@ class _StateGraph {
 }
 
 class _ManagedStateAction {
-    final String? actionName;
+    final String name;
 
     /// A map of _ManagedValue indices to a value for that _ManagedValue.
     ///
@@ -503,7 +405,7 @@ class _ManagedStateAction {
     _ManagedStateAction({
         required this.registeredStateValues,
         required this.action,
-        this.actionName,
+        required this.name,
     });
 
     static _ManagedStateAction? create({
@@ -511,7 +413,7 @@ class _ManagedStateAction {
         required StateAction stateAction
     }) {
         assert(positions.isNotEmpty); // controlled by state manager
-        bool isNotEmpty = _FSMTest.stateActionValuesNotEmpty(stateAction);
+        bool isNotEmpty = FSMTests.stateActionValuesNotEmpty(stateAction);
         if (positions.isEmpty || !isNotEmpty) return null;
         List<MapEntry<BooleanStateValue, bool>> entries = stateAction.registeredStateValues.entries.toList();
         Map<int, bool> rStateValues = {};
@@ -523,7 +425,7 @@ class _ManagedStateAction {
         return _ManagedStateAction(
             registeredStateValues: rStateValues,
             action: stateAction.action,
-            actionName: stateAction.name,
+            name: stateAction.name,
         );
     }
 
