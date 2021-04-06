@@ -3,7 +3,7 @@ import 'dart:math' as Math;
 
 import './unmanaged_classes/StateTransition.dart';
 
-import './unmanned_classes/utils.dart';
+import 'utils.dart';
 import 'package:tuple/tuple.dart';
 
 import 'FSMTests.dart';
@@ -30,7 +30,6 @@ class StateManager {
 		_doActions();
 	}
 
-	// TODO: Possibly make async so the stateTransitions can be async
 	// Factory constructors can no longer return null values with null safety.
 	static StateManager? create({
 		required void Function() notifyListeners,
