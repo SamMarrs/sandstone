@@ -18,13 +18,11 @@ class StateManager {
 
 	late final _StateGraph _stateGraph;
 
-	// TODO: Change to Map, with a key of BooleanStateValue
-	// Users will be able to access via BooleanStateValue instead of index
 	late final List<_ManagedStateAction> _managedStateActions;
 
 	late final HashSet<StateTransition> _stateTransitions;
-	// late HashSet<Map<BooleanStateValue, bool>> _stateTransitions;
 
+	// Users will be able to access via BooleanStateValue
 	LinkedHashMap<BooleanStateValue, ManagedValue> get managedValues => _stateGraph._managedValues;
 
 	StateManager._({
@@ -510,7 +508,9 @@ class ManagedValue {
 ///
 /// These rules do not have to be followed when Two different classes that extend Tuple are compared to each other.
 class StateTuple {
+	// TODO: It might be good to change this to a LinkedHashMap for some cleaner code.
 	late final UnmodifiableListView<bool> _values;
+	// TODO: It might be good to change this to a LinkedHashMap for some cleaner code.
 	late final UnmodifiableListView<ManagedValue> _valueReferences;
 	final StateManager _manager;
 
