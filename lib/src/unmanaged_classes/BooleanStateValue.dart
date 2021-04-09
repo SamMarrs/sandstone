@@ -1,13 +1,13 @@
 import '../fsm.dart';
 
 class BooleanStateValue {
-	final bool Function(StateTuple currentState, StateManager manager) canBeTrue;
-	final bool Function(StateTuple currentState, StateManager manager) canBeFalse;
+	final bool Function(StateTuple currentState, StateManager manager) canChangeFromFalse;
+	final bool Function(StateTuple currentState, StateManager manager) canChangeFromTrue;
 	final bool value;
 
 	BooleanStateValue({
-		required this.canBeFalse,
-		required this.canBeTrue,
+		required this.canChangeFromTrue,
+		required this.canChangeFromFalse,
 		required this.value
 	});
 }

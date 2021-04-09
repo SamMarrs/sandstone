@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:math' as Math;
 
 import 'package:flutter/cupertino.dart';
 
 import './unmanaged_classes/StateTransition.dart';
 
 import 'utils.dart';
-import 'package:tuple/tuple.dart';
 
 import 'FSMTests.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
@@ -40,13 +38,6 @@ class StateManager {
 	}) {
 		StateManager bsm = StateManager._(notifyListener: notifyListeners);
 
-		_StateGraph? stateGraph = _StateGraph.create(
-			manager: bsm,
-			stateValues: managedValues
-		);
-		if (stateGraph == null) return null;
-		bsm._stateGraph = stateGraph;
-
 		// Create state transitions
 		HashSet<StateTransition> _stateTransitions = HashSet();
 		bool stateTransitionError = false;
@@ -54,18 +45,9 @@ class StateManager {
 			(transition) {
 				if (
 					FSMTests.noDuplicateTransitions(_stateTransitions, transition)
-					&& FSMTests.checkIfAllStateValuesRegistered(transition, bsm._stateGraph._managedValues)
+					&& FSMTests.checkIfAllStateValuesRegistered(transition, managedValues)
 				) {
 					FSMTests.stateTransitionValuesNotEmpty(transition);
-					// If the transition can't succeed, it will be ignored.
-					// So, we don't need to prevent the initialization fo the manager if this check fails.
-					// But, we still need to add it to prevent future errors.
-					FSMTests.checkIfTransitionMaySucceed<ManagedValue>(
-						transition.name,
-						bsm._transitionConversion(transition.stateChanges),
-						bsm._stateGraph._validStates,
-						(key) => key._position
-					);
 					_stateTransitions.add(transition);
 				} else {
 					stateTransitionError = true;
@@ -74,6 +56,14 @@ class StateManager {
 		);
 		if (stateTransitionError) return null;
 		bsm._stateTransitions = _stateTransitions;
+
+		_StateGraph? stateGraph = _StateGraph.create(
+			manager: bsm,
+			stateValues: managedValues,
+			stateTransitions: _stateTransitions,
+		);
+		if (stateGraph == null) return null;
+		bsm._stateGraph = stateGraph;
 
 		// Create state actions.
 		List<_ManagedStateAction> managedStateActions = [];
@@ -105,16 +95,6 @@ class StateManager {
 		if (stateActionError) return null;
 		bsm._managedStateActions = managedStateActions;
 		return bsm;
-	}
-
-	Map<ManagedValue, bool> _transitionConversion(Map<BooleanStateValue, bool> transition) {
-		Map<ManagedValue, bool> map = {};
-		transition.forEach(
-			(key, value) {
-				map[managedValues[key]!] = value;
-			}
-		);
-		return map;
 	}
 
 	bool? getFromState(StateTuple stateTuple, BooleanStateValue value) {
@@ -163,7 +143,10 @@ class StateManager {
 			}
 		} else {
 			assert(_stateTransitions.contains(transition), 'Unknown transition.');
-			// TODO: when canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible. Ignore if not.
+			// Check if transition is possible. Ignore if not.
+			if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
+				return;
+			}
 			assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
 			if (_transitionBuffer.last == transition) return;
 			_transitionBuffer.addLast(transition);
@@ -173,14 +156,17 @@ class StateManager {
 		}
 	}
 	void _processTransition() {
+		// If a separate isolate queues a transition, this check could change between _queueTransition and here.
+		// Need to check again.
 		if (_performingTransition || _transitionBuffer.isEmpty) return;
 		_performingTransition = true;
 		StateTransition transition = _transitionBuffer.removeFirst();
-		// TODO: When canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible given the current state. Ignore if not.
 
-		Map<ManagedValue, bool> stateChanges = _transitionConversion(transition.stateChanges);
 		StateTuple currentState = _stateGraph._currentState;
-		StateTuple? nextState = _findNextState(stateChanges);
+		// If these null checks fails, it is a mistake in the implantation.
+		// Checks during initialization of the manager should guarantee these.
+		StateTuple? nextState = _stateGraph._validStates[currentState]![transition];
+		// Check if transition is possible given the current state. Ignore if not.
 		if (nextState == null) {
 			_performingTransition = false;
 			_queueTransition(null);
@@ -201,7 +187,15 @@ class StateManager {
 		if (currentState != nextState) {
 			_stateGraph.changeState(nextState);
 		}
-		// TODO: purge _transitionBuffer of invalid transitions given this new state.
+		// Purge _transitionBuffer of invalid transitions given this new state.
+		_transitionBuffer.removeWhere(
+			(queuedTransition) {
+				// If these null checks fails, it is a mistake in the implantation.
+				// Checks during initialization of the manager should guarantee these.
+				return !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
+			}
+		);
+
 		if (transition.action != null) {
 			transition.action!(this, currentState, nextState);
 		}
@@ -219,60 +213,18 @@ class StateManager {
 			}
 		);
 	}
-
-	StateTuple? _findNextState(Map<ManagedValue, bool> update) {
-		List<Tuple2<StateTuple, int>> possibleStates = [];
-		int mask = Utils.maskFromMap<ManagedValue>(update, (key) => key._position);
-		int subHash = Utils.hashFromMap<ManagedValue>(update, (key) => key._position);
-
-		if ((_stateGraph._currentState.hashCode & mask) == subHash) {
-			return _stateGraph._currentState;
-		}
-
-		_stateGraph.getCurrentAdjacent().forEach(
-			(stateDiff) {
-				StateTuple state = stateDiff.item1;
-				if ((state.hashCode & mask) == subHash ) {
-					possibleStates.add(stateDiff);
-				}
-			}
-		);
-
-		assert(possibleStates.isNotEmpty, 'Invalid state transition.');
-		if (possibleStates.isEmpty) return null;
-		if (possibleStates.length == 1) {
-			return possibleStates[0].item1;
-		} else {
-			int minDiff = possibleStates[0].item2;
-			List<StateTuple> minChangeStates = [
-				possibleStates[0].item1
-			];
-			for (int i = 1; i < possibleStates.length; i++) {
-				int diff = possibleStates[i].item2;
-				if (diff == minDiff) minChangeStates.add(possibleStates[i].item1);
-				if (diff > minDiff) break;
-			}
-			assert(
-				minChangeStates.length == 1,
-				'Multiple valid states with the same minimum difference to the current state. Try narrowing the conditions in the state transition function.'
-			);
-
-			return minChangeStates.first;
-		}
-	}
-
 }
 
 class _StateGraph {
 	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues;
 
-	final HashMap<StateTuple, List<Tuple2<StateTuple, int>>> _validStates;
+	final HashMap<StateTuple, HashMap<StateTransition, StateTuple>> _validStates;
 
 	StateTuple _currentState;
 
 	_StateGraph._({
 		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
-		required HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates,
+		required HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates,
 		required StateTuple currentState,
 	}): _managedValues = managedValues,
 		_validStates = validStates,
@@ -280,7 +232,8 @@ class _StateGraph {
 
 	static _StateGraph? create({
 		required StateManager manager,
-		required List<BooleanStateValue> stateValues
+		required List<BooleanStateValue> stateValues,
+		required HashSet<StateTransition> stateTransitions
 	}) {
 		LinkedHashMap<BooleanStateValue, ManagedValue> managedValues = LinkedHashMap();
 		// Setup managed values with correct position information.
@@ -292,19 +245,12 @@ class _StateGraph {
 			);
 		}
 
-		HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates = _StateGraph._findAllGoodState(
+		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates = _StateGraph._buildAdjacencyList(
 			managedValues: managedValues,
-			manager: manager
+			manager: manager,
+			stateTransitions: stateTransitions
 		);
 		StateTuple currentState = StateTuple._fromMap(managedValues, manager);
-
-		_StateGraph._buildAdjacencyList(
-			managedValues: managedValues,
-			validStates: validStates
-		);
-
-		if (!FSMTests.isValidInitialState(currentState, validStates)) return null;
-		if (!FSMTests.atLeastOneValidState(validStates)) return null;
 		return _StateGraph._(
 			managedValues: managedValues,
 			validStates: validStates,
@@ -312,88 +258,62 @@ class _StateGraph {
 		);
 	}
 
-	// TODO: Convert to traversing the tree by using canChangeFromTrue/canChangeFromFalse logic
-	static HashMap<StateTuple, List<Tuple2<StateTuple, int>>> _findAllGoodState({
+	static HashMap<StateTuple, HashMap<StateTransition, StateTuple>> _buildAdjacencyList({
 		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
-		required StateManager manager
+		required StateManager manager,
+		required HashSet<StateTransition> stateTransitions,
 	}) {
-		HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates = HashMap();
-		int maxInt = (Math.pow(2, managedValues.length) as int) - 1;
-		for (int i = 0; i <= maxInt; i++) {
-			StateTuple? st = StateTuple._fromHash(managedValues, manager, i);
-			if (st != null) {
-				if ( managedValues.values.every((stateVal) => stateVal._isAllowed(st))) {
-					validStates.putIfAbsent(st, () => []);
-				}
+		StateTuple initialState = StateTuple._fromMap(managedValues, manager);
+		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> adjacencyList = HashMap();
+		HashSet<StateTransition> usedTransitions = HashSet();
+
+		void findNextStates(StateTuple state) {
+			if (adjacencyList.containsKey(state)) {
+				// This state has already been visited.
+				return;
 			}
-		}
-		return validStates;
-	}
-
-	static void _buildAdjacencyList({
-		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
-		required HashMap<StateTuple, List<Tuple2<StateTuple, int>>> validStates
-	}) {
-		int findDifference(StateTuple a, StateTuple b) {
-			int diff = 0;
-			for (int i = 0; i < managedValues.length; i++) {
-				if (a._values[i] != b._values[i]) {
-					diff++;
-				}
-			}
-			return diff;
-		}
-
-		HashMap<StateTuple, HashSet<StateTuple>> checked = HashMap();
-		validStates.entries.forEach(
-			(entry) {
-				StateTuple primaryState = entry.key;
-				List<Tuple2<StateTuple, int>> primaryStateList = entry.value;
-				validStates.entries.forEach(
-					(_entry) {
-						StateTuple adjacentState = _entry.key;
-						List<Tuple2<StateTuple, int>> adjacentStateList = _entry.value;
-						// Check if the has already been done.
-						if (
-							adjacentState == primaryState
-							|| (
-								checked.containsKey(primaryState)
-								&& checked[primaryState]!.contains(adjacentState)
-							)
-						) {
-							return;
+			adjacencyList[state] = HashMap();
+			stateTransitions.forEach(
+				(transition) {
+					bool transitionIsValid = transition.stateChanges.entries.every(
+						(element) {
+							BooleanStateValue key = element.key;
+							bool newValue = element.value;
+							assert(managedValues[key] != null);
+							ManagedValue managedValue = managedValues[key]!;
+							bool currentValue = state._values[managedValue._position];
+							if (currentValue == newValue) {
+								return true;
+							} else {
+								return managedValue._canChange(state);
+							}
 						}
-						// Make note that this state combo has been done, so it doesn't occur again
-						if (!checked.containsKey(primaryState)) {
-							checked[primaryState] = HashSet();
-						}
-						checked[primaryState]!.add(adjacentState);
-						if (!checked.containsKey(adjacentState)) {
-							checked[adjacentState] = HashSet();
-						}
-						checked[adjacentState]!.add(primaryState);
+					);
+					if (transitionIsValid) {
+						usedTransitions.add(transition);
+						Map<int, bool> updates = {};
+						transition.stateChanges.forEach(
+							(key, value) {
+								assert(managedValues[key] != null);
+								updates[managedValues[key]!._position] = value;
+							}
+						);
+						StateTuple nextState = StateTuple._fromState(state, updates);
 
-						int diff = findDifference(primaryState, adjacentState);
-						primaryStateList.add(Tuple2(adjacentState, diff));
-						adjacentStateList.add(Tuple2(primaryState, diff));
+						adjacencyList[state]![transition] = nextState;
+						if (!adjacencyList.containsKey(nextState)) {
+							findNextStates(nextState);
+						}
 					}
-				);
-			}
-		);
-		validStates.entries.forEach(
-			(entry) {
-				entry.value.sort(
-					(a, b) => a.item2 - b.item2
-				);
-			}
-		);
+				}
+			);
+		}
+		findNextStates(initialState);
+		FSMTests.noUnusedTransitions(stateTransitions, usedTransitions);
+		return adjacencyList;
 	}
-
-
-	List<Tuple2<StateTuple, int>> getCurrentAdjacent() => _validStates[_currentState]!;
 
 	void changeState(StateTuple newState) {
-		// print(newState.hashCode.toRadixString(2) + ' ' + newState.hashCode.toString());
 		assert(
 			() {
 				print(newState.toString());
@@ -470,8 +390,8 @@ class _ManagedStateAction {
 }
 
 class ManagedValue {
-	final bool Function(StateTuple currentState, StateManager manager) _canBeTrue;
-	final bool Function(StateTuple currentState, StateManager manager) _canBeFalse;
+	final bool Function(StateTuple currentState, StateManager manager) _canChangeFromFalse;
+	final bool Function(StateTuple currentState, StateManager manager) _canChangeFromTrue;
 	bool _value;
 	bool get value => _value;
 	// only accessible BooleanStateManager
@@ -485,11 +405,11 @@ class ManagedValue {
 	}): _position = position,
 		_manager = manager,
 		_value = managedValue.value,
-		_canBeFalse = managedValue.canBeFalse,
-		_canBeTrue = managedValue.canBeTrue;
+		_canChangeFromTrue = managedValue.canChangeFromTrue,
+		_canChangeFromFalse = managedValue.canChangeFromFalse;
 
-	bool _isAllowed(StateTuple state)  {
-		return state._values[_position] ? _canBeTrue(state, _manager) : _canBeFalse(state, _manager);
+	bool _canChange(StateTuple state)  {
+		return state._values[_position] ? _canChangeFromTrue(state, _manager) : _canChangeFromFalse(state, _manager);
 	}
 
 	bool? getFromState(StateTuple stateTuple) {
@@ -512,7 +432,24 @@ class StateTuple {
 	late final UnmodifiableListView<bool> _values;
 	// TODO: It might be good to change this to a LinkedHashMap for some cleaner code.
 	late final UnmodifiableListView<ManagedValue> _valueReferences;
-	final StateManager _manager;
+	late final StateManager _manager;
+
+	StateTuple._fromState(
+		StateTuple oldState,
+		[Map<int, bool>? updates]
+	) {
+		_valueReferences = UnmodifiableListView(_valueReferences.toList(growable: false));
+		_manager = oldState._manager;
+		List<bool> values = [];
+		for (int i = 0; i < oldState._values.length; i++) {
+			if (updates != null && updates.containsKey(i)) {
+				values.add(updates[i]!);
+			} else {
+				values.add(oldState.values[i]);
+			}
+		}
+		_values = UnmodifiableListView(values);
+	}
 
 	StateTuple._fromMap(
 		LinkedHashMap<BooleanStateValue, ManagedValue> valueReferences,
@@ -532,32 +469,10 @@ class StateTuple {
 		);
 	}
 
-	static StateTuple? _fromHash(
-		LinkedHashMap<BooleanStateValue, ManagedValue> valueReferences,
-		StateManager manager,
-		int stateHash
-	) {
-		assert(stateHash >= 0);
-		if (stateHash < 0) return null;
-		int maxInt = (Math.pow(2, valueReferences.length) as int) - 1;
-		assert(stateHash <= maxInt);
-		if (stateHash > maxInt) return null;
-
-		Map<int, bool> updates = {};
-		for (int i = 0; i < valueReferences.length; i++) {
-			int value = stateHash & (1 << i);
-			updates[i] = value > 0;
-		}
-		StateTuple st = StateTuple._fromMap(valueReferences, manager, updates);
-		st._hashCode = stateHash;
-
-		return st;
-	}
-
 	/// width of tuple;
 	int get width => _values.length;
 
-	UnmodifiableListView<bool> get values => UnmodifiableListView(_values);
+	UnmodifiableListView<bool> get values => _values;
 
 	int? _hashCode;
 	/// (true) => 1, (false) => 0
