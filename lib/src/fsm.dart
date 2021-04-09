@@ -191,37 +191,38 @@ class StateManager {
 			_queueTransition(null);
 			return;
 		}
-		if (currentState == nextState) {
-			if (transition.action != null) transition.action!(this, currentState, nextState);
-			_performingTransition = false;
-			_queueTransition(null);
-			return;
-		}
+
 		// TODO: What's the order of operations?
 		// 1. update current state
 		// 2. transition action
 		// 3. mark need rebuild
 		// 4. widgets rebuild
 		// 5. run state actions
+		// -- I don't think I can guarantee this order
 		// 6. Queue transition that might result from transition action
 		// 7. Queue transition that might result from state action
 		// 8. Queue transitions that might result from rebuild
 
-		_stateGraph.changeState(nextState);
+		if (currentState != nextState) {
+			_stateGraph.changeState(nextState);
+		}
 		// TODO: purge _transitionBuffer of invalid transitions given this new state.
 		if (transition.action != null) {
 			transition.action!(this, currentState, nextState);
 		}
+		if (currentState != nextState) {
+			_notifyListeners();
+		}
 		assert(WidgetsBinding.instance != null);
-		_notifyListeners();
 		WidgetsBinding.instance!.addPostFrameCallback(
 			(timeStamp) {
-				_doActions();
+				if (currentState != nextState) {
+					_doActions();
+				}
 				_performingTransition = false;
 				_queueTransition(null);
 			}
 		);
-
 	}
 
 	// DoubleLinkedQueue<StateTransition> _transitionQueue = DoubleLinkedQueue();
