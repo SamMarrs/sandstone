@@ -163,7 +163,7 @@ class StateManager {
 	// TODO: This setup of queueing transitions might queue more events than it needs to.
 	void _queueTransition(StateTransition? transition) {
 		if (transition == null) {
-			if (_transitionBuffer.isNotEmpty) {
+			if (_transitionBuffer.isNotEmpty && !_performingTransition) {
 				Future(_processTransition);
 			}
 		} else {
