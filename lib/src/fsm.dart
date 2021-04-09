@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as Math;
+
+import 'package:flutter/cupertino.dart';
 
 import './unmanaged_classes/StateTransition.dart';
 
@@ -15,6 +18,8 @@ class StateManager {
 
 	late final _StateGraph _stateGraph;
 
+	// TODO: Change to Map, with a key of BooleanStateValue
+	// Users will be able to access via BooleanStateValue instead of index
 	late final List<_ManagedStateAction> _managedStateActions;
 
 	late final HashSet<StateTransition> _stateTransitions;
@@ -125,93 +130,163 @@ class StateManager {
 		return stateTuple._values[_booleanStateValueToIndex[value]!];
 	}
 
-	void _notify() {
-		_notifyListeners();
-		_doActions();
-	}
-
 	void _doActions() {
-		Future.delayed(
-			Duration.zero,
-			() {
-				List<Map<BooleanStateValue, bool>> transitions = [];
-				_managedStateActions.forEach(
-					(action) {
-						if (action.shouldRun(_stateGraph._currentState)) {
-							action.action();
-						}
-					}
-				);
+		_managedStateActions.forEach(
+			(action) {
+				if (action.shouldRun(_stateGraph._currentState)) {
+					action.action(this, _stateGraph._currentState);
+				}
 			}
 		);
 	}
 
-	DoubleLinkedQueue<StateTransition> _updateQueue = DoubleLinkedQueue();
-	void queueUpdate(StateTransition transition) {
-		assert(_stateTransitions.contains(transition), 'Unknown transition.');
-		// TODO: when canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible. Ignore if not.
+	// TODO: If a transition becomes invalid while waiting in the queue (before being processed), should I clear it from the queue?
+	// For example:
+	// 	transitions queued: [A, B, C, A]
+	// 	A causes a state change where C, and the second A are now invalid.
+	// 	At the end of processing the first A, should we clear transitions C, and the second A?
+	// 	First thought, yes.
 
-		if (_updateQueue.last == transition) return;
-	}
-
-	// FIXME: This doesn't work as intended.
 	// Possibly do this:
 	// 1. When canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible. Else ignore.
 	// 2. If many of the same transitions occur sequentially, before the execution, ignore the duplicates.
 	// 3. If a different transition is queued prior to execution of the former, queue the latter into a later event.
 	// 4. If the first and third queued transitions are the same, with the second being different prior to execution, create three separate events.
 	// 5. Once a transition event is executed, check if it is still valid, otherwise ignore.
-	HashSet<Map<BooleanStateValue, bool>> _queuedUpdates = HashSet();
-	void queueStateUpdate(Map<BooleanStateValue, bool> transition) {
-		assert(_stateTransitions.contains(transition), 'Unknown transition.');
-		assert(_queuedUpdates.isEmpty || _queuedUpdates.contains(transition), 'Multiple different transitions queued at the same time.');
-		if (
-			_stateTransitions.contains(transition)
-			&& (
-				_queuedUpdates.isEmpty
-				|| _queuedUpdates.contains(transition)
-			)
-		) {
-			// If the queue doesn't start empty, that means multiple transitions have been queued before the transitions were able to run.
-			// This would happen with multiple sequential calls to queueStateUpdate.
-			// Only Future.delayed when the queue is empty acts as a debouncer to repeated, sequential calls to queueStateUpdate.
-			bool wasEmpty = _queuedUpdates.isEmpty;
-			_queuedUpdates.add(transition);
-			if (wasEmpty) {
-				Future.delayed(
-					Duration.zero,
-					() => _processQueuedUpdates()
-				);
+
+
+	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
+	bool _performingTransition = false;
+	void queueTransition(StateTransition transition) {
+		_queueTransition(transition);
+	}
+	// TODO: This setup of queueing transitions might queue more events than it needs to.
+	void _queueTransition(StateTransition? transition) {
+		if (transition == null) {
+			if (_transitionBuffer.isNotEmpty) {
+				Future(_processTransition);
+			}
+		} else {
+			assert(_stateTransitions.contains(transition), 'Unknown transition.');
+			// TODO: when canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible. Ignore if not.
+			assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
+			if (_transitionBuffer.last == transition) return;
+			_transitionBuffer.addLast(transition);
+			if (!_performingTransition) {
+				Future(_processTransition);
 			}
 		}
 	}
+	void _processTransition() {
+		if (_performingTransition || _transitionBuffer.isEmpty) return;
+		_performingTransition = true;
+		StateTransition transition = _transitionBuffer.removeFirst();
+		// TODO: When canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible given the current state. Ignore if not.
 
-	void _processQueuedUpdates() {
-		if (_queuedUpdates.isEmpty) return;
-		List<Map<ManagedValue, bool>> queued = _queuedUpdates.map(
-			(update) => _transitionConversion(update)
-		).toList();
-		_queuedUpdates.clear();
+		Map<ManagedValue, bool> stateChanges = _transitionConversion(transition.stateChanges);
+		StateTuple currentState = _stateGraph._currentState;
+		StateTuple? nextState = _findNextState(stateChanges);
+		if (nextState == null) {
+			_performingTransition = false;
+			_queueTransition(null);
+			return;
+		}
+		if (currentState == nextState) {
+			if (transition.action != null) transition.action!(this, currentState, nextState);
+			_performingTransition = false;
+			_queueTransition(null);
+			return;
+		}
+		// TODO: What's the order of operations?
+		// 1. update current state
+		// 2. transition action
+		// 3. mark need rebuild
+		// 4. widgets rebuild
+		// 5. run state actions
+		// 6. Queue transition that might result from transition action
+		// 7. Queue transition that might result from state action
+		// 8. Queue transitions that might result from rebuild
 
-		Map<ManagedValue, bool> merged = {};
-		queued.forEach(
-			(newUpdate) {
-				// As of writing, this should never happen due to assertions and checks in queueStateUpdate.
-				assert(!merged.entries.any((entry) => entry.value != newUpdate[entry.key]), 'Encountered conflicting transition requests.');
-				merged.addAll(newUpdate);
+		_stateGraph.changeState(nextState);
+		// TODO: purge _transitionBuffer of invalid transitions given this new state.
+		if (transition.action != null) {
+			transition.action!(this, currentState, nextState);
+		}
+		assert(WidgetsBinding.instance != null);
+		_notifyListeners();
+		WidgetsBinding.instance!.addPostFrameCallback(
+			(timeStamp) {
+				_doActions();
+				_performingTransition = false;
+				_queueTransition(null);
 			}
 		);
-		_applyStateUpdate(merged);
+
 	}
 
-	void _applyStateUpdate(Map<ManagedValue, bool> update) {
+	// DoubleLinkedQueue<StateTransition> _transitionQueue = DoubleLinkedQueue();
+	// void doTransition(StateTransition transition) {
+	// 	assert(_stateTransitions.contains(transition), 'Unknown transition.');
+	// 	// TODO: when canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible. Ignore if not.
+
+	// 	assert(_transitionQueue.last != transition, 'The same transition has been queued sequentially.');
+	// 	if (_transitionQueue.last == transition) return;
+	// 	_transitionQueue.addLast(transition);
+	// 	Future(
+	// 		_processTransition
+	// 	);
+	// }
+
+	// void _processTransition() {
+	// 	if (_transitionQueue.isEmpty) return;
+	// 	StateTransition transition = _transitionQueue.removeFirst();
+	// 	// TODO: When canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible given the current state. Ignore if not.
+
+	// 	Map<ManagedValue, bool> stateChanges = _transitionConversion(transition.stateChanges);
+	// 	StateTuple currentState = _stateGraph._currentState;
+	// 	StateTuple? nextState = _findNextState(stateChanges);
+	// 	if (nextState == null) return;
+	// 	if (currentState == nextState) {
+	// 		if (transition.action != null) transition.action!(this, currentState, nextState);
+	// 	} else {
+	// 		// TODO: What's the order of operations?
+	// 		// 1. update current state
+	// 		// 2. transition action
+	// 		// 3. mark need rebuild
+	// 		// 4. widgets rebuild
+	// 		// 5. run state actions
+	// 		// 6. Queue transition that might result from transition action
+	// 		// 7. Queue transition that might result from state action
+	// 		// 8. Queue transitions that might result from rebuild
+	// 		//
+	// 		_stateGraph.changeState(nextState);
+	// 		// See bugs mentioned here: https://web.archive.org/web/20170704074724/https://webdev.dartlang.org/articles/performance/event-loop#microtask-queue-schedulemicrotask
+	// 		scheduleMicrotask(
+	// 			() {
+	// 				if (transition.action != null) {
+	// 					scheduleMicrotask(
+	// 						() => transition.action!(this, currentState, nextState)
+	// 					);
+	// 				}
+	// 				// FIXME: I think this still allows the UI thread to insert events into the queue before actions get a chance to run.
+	// 				Future(
+	// 					_doActions
+	// 				);
+	// 				scheduleMicrotask(
+	// 					_notifyListeners
+	// 				);
+	// 			}
+	// 		);
+	// 	}
+	// }
+
+	StateTuple? _findNextState(Map<ManagedValue, bool> update) {
 		List<Tuple2<StateTuple, int>> possibleStates = [];
 		int mask = Utils.maskFromMap<ManagedValue>(update, (key) => key._position);
 		int subHash = Utils.hashFromMap<ManagedValue>(update, (key) => key._position);
 
-		// If the currentState is still valid, the update is a duplicate, and should be ignored.
 		if ((_stateGraph._currentState.hashCode & mask) == subHash) {
-			return;
+			return _stateGraph._currentState;
 		}
 
 		_stateGraph.getCurrentAdjacent().forEach(
@@ -224,10 +299,9 @@ class StateManager {
 		);
 
 		assert(possibleStates.isNotEmpty, 'Invalid state transition.');
-		if (possibleStates.isEmpty) return;
+		if (possibleStates.isEmpty) return null;
 		if (possibleStates.length == 1) {
-			_stateGraph.changeState(possibleStates.first.item1);
-			_notify();
+			return possibleStates[0].item1;
 		} else {
 			int minDiff = possibleStates[0].item2;
 			List<StateTuple> minChangeStates = [
@@ -243,8 +317,7 @@ class StateManager {
 				'Multiple valid states with the same minimum difference to the current state. Try narrowing the conditions in the state transition function.'
 			);
 
-			_stateGraph.changeState(minChangeStates.first);
-			_notify();
+			return minChangeStates.first;
 		}
 	}
 
@@ -388,7 +461,13 @@ class _StateGraph {
 
 	void changeState(StateTuple newState) {
 		// print(newState.hashCode.toRadixString(2) + ' ' + newState.hashCode.toString());
-		print(newState.toString());
+		assert(
+			() {
+				print(newState.toString());
+				return true;
+			}()
+		);
+
 		_currentState = newState;
 		newState._valueReferences.forEach(
 			(managedValue) {
@@ -407,7 +486,7 @@ class _ManagedStateAction {
 	/// Used to check if this action should run for a given state.
 	final Map<int, bool> registeredStateValues;
 
-	final void Function() action;
+	final void Function(StateManager manager, StateTuple currentState) action;
 
 
 	_ManagedStateAction({

@@ -1,4 +1,5 @@
 import 'BooleanStateValue.dart';
+import '../fsm.dart';
 
 class StateAction {
 	/// Used for debugging.
@@ -6,7 +7,7 @@ class StateAction {
 
 	final Map<BooleanStateValue, bool> registeredStateValues;
 
-	final void Function() action;
+	final void Function(StateManager manager, StateTuple currentState) action;
 
 	StateAction({
 		required this.registeredStateValues,
