@@ -1,7 +1,6 @@
 
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart';
 import 'package:tuple/tuple.dart';
 
 import 'fsm.dart';
@@ -58,9 +57,9 @@ class FSMTests {
 
 	static bool checkIfAllStateValuesRegistered(
 		StateTransition transition,
-		Map<BooleanStateValue, int> booleanStateValueToIndex
+		LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
 	) {
-		bool allRegistered = transition.stateChanges.entries.every((element) => booleanStateValueToIndex.containsKey(element.key));
+		bool allRegistered = transition.stateChanges.entries.every((element) => managedValues.containsKey(element.key));
 		assert(allRegistered, 'Transition called "${transition.name}" contains BooleanStateValues that have not been registered with the state manager.');
 		return allRegistered;
 	}
@@ -95,9 +94,9 @@ class FSMTests {
 
 	static bool checkIfAllActionStateValuesRegistered(
 		StateAction  stateAction,
-		Map<BooleanStateValue, int> booleanStateValueToIndex
+		LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
 	) {
-		bool allRegistered = stateAction.registeredStateValues.entries.every((element) => booleanStateValueToIndex.containsKey(element.key));
+		bool allRegistered = stateAction.registeredStateValues.entries.every((element) => managedValues.containsKey(element.key));
 		assert(allRegistered, 'State action called "${stateAction.name}" contains BooleanStateValues that have not been registered with the state manager.');
 		return allRegistered;
 	}
