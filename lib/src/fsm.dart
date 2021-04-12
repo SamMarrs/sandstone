@@ -115,28 +115,13 @@ class StateManager {
 		);
 	}
 
-	// TODO: If a transition becomes invalid while waiting in the queue (before being processed), should I clear it from the queue?
-	// For example:
-	// 	transitions queued: [A, B, C, A]
-	// 	A causes a state change where C, and the second A are now invalid.
-	// 	At the end of processing the first A, should we clear transitions C, and the second A?
-	// 	First thought, yes.
-
-	// Possibly do this:
-	// 1. When canChangeFromTrue/canChangeFromFalse implemented, check if transition is possible. Else ignore.
-	// 2. If many of the same transitions occur sequentially, before the execution, ignore the duplicates.
-	// 3. If a different transition is queued prior to execution of the former, queue the latter into a later event.
-	// 4. If the first and third queued transitions are the same, with the second being different prior to execution, create three separate events.
-	// 5. Once a transition event is executed, check if it is still valid, otherwise ignore.
-
-
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
 	bool _performingTransition = false;
-	void queueTransition(StateTransition transition) {
-		_queueTransition(transition);
+	void queueTransition(StateTransition transition, [bool? ignoreDuplicate]) {
+		_queueTransition(transition, ignoreDuplicate);
 	}
-	// TODO: This setup of queueing transitions might queue more events than it needs to.
-	void _queueTransition(StateTransition? transition) {
+
+	void _queueTransition(StateTransition? transition, [bool? ignoreDuplicate]) {
 		if (transition == null) {
 			if (_transitionBuffer.isNotEmpty && !_performingTransition) {
 				Future(_processTransition);
@@ -147,8 +132,23 @@ class StateManager {
 			if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
 				return;
 			}
-			assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
-			if (_transitionBuffer.last == transition) return;
+			// TODO: This assertion might not work. It is supposed to fix a debounce of multiple sequential transitions.
+			// assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
+			// Unfortunately, that breaks for things like counting rapid button presses,
+			// or if the processing of the buffer is lagging the input.
+			// After the buffer purge at the end of a state change, that might improperly trigger this check.
+			// [A, B, C] => purge => [A, B] => queue B => [A, B, B]
+			// Should the "ignoreDuplicate" flag be added per transition?
+			if (
+				(
+					( ignoreDuplicate != null && ignoreDuplicate )
+					|| (ignoreDuplicate == null && transition.ignoreDuplicates)
+				)
+				&& _transitionBuffer.last == transition
+			) {
+				assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
+				return;
+			}
 			_transitionBuffer.addLast(transition);
 			if (!_performingTransition) {
 				Future(_processTransition);
@@ -163,7 +163,7 @@ class StateManager {
 		StateTransition transition = _transitionBuffer.removeFirst();
 
 		StateTuple currentState = _stateGraph._currentState;
-		// If these null checks fails, it is a mistake in the implantation.
+		// If these null checks fails, it is a mistake in the implementation.
 		// Checks during initialization of the manager should guarantee these.
 		StateTuple? nextState = _stateGraph._validStates[currentState]![transition];
 		// Check if transition is possible given the current state. Ignore if not.

@@ -7,10 +7,13 @@ class StateTransition {
 	final String name;
 	final Map<BooleanStateValue, bool> stateChanges;
 	final void Function(StateManager manager, StateTuple currentState, StateTuple nextState)? action;
+	/// When true, sequential queuing of this transition will be ignored.
+	final bool ignoreDuplicates;
 
 	StateTransition({
 		this.name = '',
 		required this.stateChanges,
-		this.action
+		this.action,
+		this.ignoreDuplicates = false
 	});
 }
