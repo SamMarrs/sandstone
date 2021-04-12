@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:developer' as Developer;
 
 import 'package:flutter/cupertino.dart';
 
@@ -316,7 +317,7 @@ class _StateGraph {
 	void changeState(StateTuple newState) {
 		assert(
 			() {
-				print(newState.toString());
+				Developer.log(newState.toString());
 				return true;
 			}()
 		);
