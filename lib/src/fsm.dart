@@ -15,6 +15,15 @@ import 'unmanaged_classes/StateAction.dart';
 // TODO: Add a method to start a transition that clears and jumps the queue.
 // Kind of like a hard reset option.
 
+
+// TODO: Build a version of StateManager that allows for side effects in state transitions.
+// This version will use canBeTrue/canBeFalse (like before the change to canChangeFromX).
+// canBeX will be a function of the current state and the previous state.
+// Instead of traversing the graph by transition changes, every possible combination of previous and next state will be considered.
+// The resulting adjacency list will be much larger and back to the state => ordered list of next state setup, but will allow side effects.
+// Since the current and previous states are considered, we are still able to purge the transition buffer if the queued transitions don't point to
+// a state adjacent to the new state.
+
 class StateManager {
 	final void Function() _notifyListeners;
 
@@ -27,9 +36,13 @@ class StateManager {
 	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues = LinkedHashMap();
 	ManagedValue? getManagedValue(BooleanStateValue booleanStateValue) => _managedValues[booleanStateValue];
 
+	final bool _showDebugLogs;
+
 	StateManager._({
 		required void Function() notifyListener,
-	}): _notifyListeners = notifyListener {
+		required bool showDebugLogs,
+	}): _notifyListeners = notifyListener,
+		_showDebugLogs = showDebugLogs {
 		// _doActions();
 	}
 
@@ -39,8 +52,9 @@ class StateManager {
 		required List<BooleanStateValue> managedValues,
 		required List<StateTransition> stateTransitions,
 		List<StateAction>? stateActions,
+		bool showDebugLogs = false
 	}) {
-		StateManager bsm = StateManager._(notifyListener: notifyListeners);
+		StateManager bsm = StateManager._(notifyListener: notifyListeners, showDebugLogs: showDebugLogs);
 
 		// Create state transitions
 		HashSet<StateTransition> _stateTransitions = HashSet();
@@ -133,7 +147,7 @@ class StateManager {
 		_queueTransition(transition, ignoreDuplicate);
 	}
 
-	void _queueTransition(StateTransition? transition, [bool? ignoreDuplicate]) {
+	void _queueTransition(StateTransition? transition, [bool? ignoreDuplicates]) {
 		if (transition == null) {
 			if (_transitionBuffer.isNotEmpty && !_performingTransition) {
 				Future(_processTransition);
@@ -142,6 +156,9 @@ class StateManager {
 			assert(_stateTransitions.contains(transition), 'Unknown transition.');
 			// Check if transition is possible. Ignore if not.
 			if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
+				if (_showDebugLogs) {
+					Developer.log('Ignoring transition "${transition.name}" because it does not transition to a valid state.');
+				}
 				return;
 			}
 			// TODO: This assertion might not work. It is supposed to fix a debounce of multiple sequential transitions.
@@ -150,15 +167,16 @@ class StateManager {
 			// or if the processing of the buffer is lagging the input.
 			// After the buffer purge at the end of a state change, that might improperly trigger this check.
 			// [A, B, C] => purge => [A, B] => queue B => [A, B, B]
-			// Should the "ignoreDuplicate" flag be added per transition?
 			if (
 				(
-					( ignoreDuplicate != null && ignoreDuplicate )
-					|| (ignoreDuplicate == null && transition.ignoreDuplicates)
+					( ignoreDuplicates != null && ignoreDuplicates )
+					|| (ignoreDuplicates == null && transition.ignoreDuplicates)
 				)
-				&& _transitionBuffer.last == transition
+				&& _transitionBuffer.isNotEmpty && _transitionBuffer.last == transition
 			) {
-				assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
+				if (_showDebugLogs) {
+					Developer.log('Ignoring transition "${transition.name}" because ignoreDuplicate is set.');
+				}
 				return;
 			}
 			_transitionBuffer.addLast(transition);
@@ -173,6 +191,9 @@ class StateManager {
 		if (_performingTransition || _transitionBuffer.isEmpty) return;
 		_performingTransition = true;
 		StateTransition transition = _transitionBuffer.removeFirst();
+		if (_showDebugLogs) {
+			Developer.log('Processing transition "${transition.name}".');
+		}
 
 		StateTuple currentState = _stateGraph._currentState;
 		// If these null checks fails, it is a mistake in the implementation.
@@ -234,13 +255,17 @@ class _StateGraph {
 
 	StateTuple _currentState;
 
+	final StateManager _manager;
+
 	_StateGraph._({
 		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
 		required HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates,
 		required StateTuple currentState,
+		required StateManager manager
 	}): _managedValues = managedValues,
 		_validStates = validStates,
-		_currentState = currentState;
+		_currentState = currentState,
+		_manager = manager;
 
 	static _StateGraph? create({
 		required StateManager manager,
@@ -258,6 +283,7 @@ class _StateGraph {
 			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
 			currentState: currentState,
+			manager: manager
 		);
 	}
 
@@ -317,12 +343,9 @@ class _StateGraph {
 	}
 
 	void changeState(StateTuple newState) {
-		assert(
-			() {
-				Developer.log(newState.toString());
-				return true;
-			}()
-		);
+		if (_manager._showDebugLogs) {
+			Developer.log(newState.toString());
+		}
 
 		_currentState = newState;
 		newState._valueReferences.forEach(
