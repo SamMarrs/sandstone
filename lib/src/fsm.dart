@@ -14,6 +14,7 @@ import 'unmanaged_classes/StateAction.dart';
 
 // TODO: Add a method to start a transition that clears and jumps the queue.
 // Kind of like a hard reset option.
+// Clearing the queue should be optional.
 
 
 // TODO: Build a version of StateManager that allows for side effects in state transitions.
@@ -416,8 +417,8 @@ class _ManagedStateAction {
 }
 
 class ManagedValue {
-	final bool Function(StateTuple currentState, StateManager manager) _canChangeFromFalse;
-	final bool Function(StateTuple currentState, StateManager manager) _canChangeFromTrue;
+	final bool Function(StateTuple currentState, StateManager manager) _canChangeToTrue;
+	final bool Function(StateTuple currentState, StateManager manager) _canChangeToFalse;
 	bool _value;
 	bool get value => _value;
 	// only accessible BooleanStateManager
@@ -431,11 +432,11 @@ class ManagedValue {
 	}): _position = position,
 		_manager = manager,
 		_value = managedValue.value,
-		_canChangeFromTrue = managedValue.canChangeFromTrue,
-		_canChangeFromFalse = managedValue.canChangeFromFalse;
+		_canChangeToFalse = managedValue.canChangeToFalse,
+		_canChangeToTrue = managedValue.canChangeToTrue;
 
 	bool _canChange(StateTuple state)  {
-		return state._values[_position] ? _canChangeFromTrue(state, _manager) : _canChangeFromFalse(state, _manager);
+		return state._values[_position] ? _canChangeToFalse(state, _manager) : _canChangeToTrue(state, _manager);
 	}
 
 	bool? getFromState(StateTuple stateTuple) {
