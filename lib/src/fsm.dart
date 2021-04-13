@@ -12,6 +12,9 @@ import 'FSMTests.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
 import 'unmanaged_classes/StateAction.dart';
 
+// TODO: Add a method to start a transition that clears and jumps the queue.
+// Kind of like a hard reset option.
+
 class StateManager {
 	final void Function() _notifyListeners;
 
@@ -21,13 +24,13 @@ class StateManager {
 
 	late final HashSet<StateTransition> _stateTransitions;
 
-	// Users will be able to access via BooleanStateValue
-	LinkedHashMap<BooleanStateValue, ManagedValue> get managedValues => _stateGraph._managedValues;
+	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues = LinkedHashMap();
+	ManagedValue? getManagedValue(BooleanStateValue booleanStateValue) => _managedValues[booleanStateValue];
 
 	StateManager._({
 		required void Function() notifyListener,
 	}): _notifyListeners = notifyListener {
-		_doActions();
+		// _doActions();
 	}
 
 	// Factory constructors can no longer return null values with null safety.
@@ -58,10 +61,17 @@ class StateManager {
 		if (stateTransitionError) return null;
 		bsm._stateTransitions = _stateTransitions;
 
+		for (int i = 0; i < managedValues.length; i++) {
+			bsm._managedValues[managedValues[i]] = ManagedValue._(
+				managedValue: managedValues[i],
+				position: i,
+				manager: bsm
+			);
+		}
 		_StateGraph? stateGraph = _StateGraph.create(
 			manager: bsm,
-			stateValues: managedValues,
 			stateTransitions: _stateTransitions,
+			unmanagedToManagedValues: bsm._managedValues
 		);
 		if (stateGraph == null) return null;
 		bsm._stateGraph = stateGraph;
@@ -95,15 +105,16 @@ class StateManager {
 		}
 		if (stateActionError) return null;
 		bsm._managedStateActions = managedStateActions;
+		bsm._doActions();
 		return bsm;
 	}
 
 	bool? getFromState(StateTuple stateTuple, BooleanStateValue value) {
 		assert(stateTuple._manager == this, 'StateTuple must be from the same state manager.');
-		assert(_stateGraph._managedValues.containsKey(value), 'BooleanStateValue must have been registered with this state manager.');
-		if (stateTuple._manager != this || !_stateGraph._managedValues.containsKey(value)) return null;
+		assert(_managedValues.containsKey(value), 'BooleanStateValue must have been registered with this state manager.');
+		if (stateTuple._manager != this || !_managedValues.containsKey(value)) return null;
 		// Performed null check in previous if statement.
-		return stateTuple._values[_stateGraph._managedValues[value]!._position];
+		return stateTuple._values[_managedValues[value]!._position];
 	}
 
 	void _doActions() {
@@ -233,27 +244,18 @@ class _StateGraph {
 
 	static _StateGraph? create({
 		required StateManager manager,
-		required List<BooleanStateValue> stateValues,
-		required HashSet<StateTransition> stateTransitions
+		required HashSet<StateTransition> stateTransitions,
+		required LinkedHashMap<BooleanStateValue, ManagedValue> unmanagedToManagedValues
 	}) {
-		LinkedHashMap<BooleanStateValue, ManagedValue> managedValues = LinkedHashMap();
-		// Setup managed values with correct position information.
-		for (int i = 0; i < stateValues.length; i++) {
-			managedValues[stateValues[i]] = ManagedValue._(
-				managedValue: stateValues[i],
-				position: i,
-				manager: manager
-			);
-		}
 
 		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates = _StateGraph._buildAdjacencyList(
-			managedValues: managedValues,
+			managedValues: unmanagedToManagedValues,
 			manager: manager,
 			stateTransitions: stateTransitions
 		);
-		StateTuple currentState = StateTuple._fromMap(managedValues, manager);
+		StateTuple currentState = StateTuple._fromMap(unmanagedToManagedValues, manager);
 		return _StateGraph._(
-			managedValues: managedValues,
+			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
 			currentState: currentState,
 		);
@@ -439,7 +441,7 @@ class StateTuple {
 		StateTuple oldState,
 		[Map<int, bool>? updates]
 	) {
-		_valueReferences = UnmodifiableListView(_valueReferences.toList(growable: false));
+		_valueReferences = UnmodifiableListView(oldState._valueReferences.toList(growable: false));
 		_manager = oldState._manager;
 		List<bool> values = [];
 		for (int i = 0; i < oldState._values.length; i++) {
