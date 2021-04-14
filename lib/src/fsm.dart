@@ -144,11 +144,11 @@ class StateManager {
 
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
 	bool _performingTransition = false;
-	void queueTransition(StateTransition transition, [bool? ignoreDuplicate]) {
-		_queueTransition(transition, ignoreDuplicate);
+	void queueTransition(StateTransition transition) {
+		_queueTransition(transition);
 	}
 
-	void _queueTransition(StateTransition? transition, [bool? ignoreDuplicates]) {
+	void _queueTransition(StateTransition? transition) {
 		if (transition == null) {
 			if (_transitionBuffer.isNotEmpty && !_performingTransition) {
 				Future(_processTransition);
@@ -169,10 +169,7 @@ class StateManager {
 			// After the buffer purge at the end of a state change, that might improperly trigger this check.
 			// [A, B, C] => purge => [A, B] => queue B => [A, B, B]
 			if (
-				(
-					( ignoreDuplicates != null && ignoreDuplicates )
-					|| (ignoreDuplicates == null && transition.ignoreDuplicates)
-				)
+				transition.ignoreDuplicates
 				&& _transitionBuffer.isNotEmpty && _transitionBuffer.last == transition
 			) {
 				if (_showDebugLogs) {
@@ -207,7 +204,7 @@ class StateManager {
 			return;
 		}
 
-		// TODO: What's the order of operations?
+		// What's correct the order of operations? Possibly:
 		// 1. update current state
 		// 2. transition action
 		// 3. mark need rebuild
@@ -221,14 +218,26 @@ class StateManager {
 		if (currentState != nextState) {
 			_stateGraph.changeState(nextState);
 		}
-		// Purge _transitionBuffer of invalid transitions given this new state.
-		_transitionBuffer.removeWhere(
-			(queuedTransition) {
-				// If these null checks fails, it is a mistake in the implantation.
-				// Checks during initialization of the manager should guarantee these.
-				return !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
-			}
-		);
+
+		void purgeQueue() {
+			// Purge _transitionBuffer of invalid transitions given this new state.
+			_transitionBuffer.removeWhere(
+				(queuedTransition) {
+					// If these null checks fails, it is a mistake in the implantation.
+					// Checks during initialization of the manager should guarantee these.
+					return !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
+				}
+			);
+			// If ignoreDuplicates is set, remove the transitions that might not be duplicated in the queue.
+			_transitionBuffer.forEachEntry(
+				(entry) {
+					if (entry.element.ignoreDuplicates && entry.previousEntry() != null && entry.element == entry.previousEntry()!.element) {
+						entry.remove();
+					}
+				}
+			);
+		}
+		purgeQueue();
 
 		if (transition.action != null) {
 			transition.action!(this, currentState, nextState);

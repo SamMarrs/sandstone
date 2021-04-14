@@ -7,10 +7,7 @@ class StateTransition {
 	final String name;
 	final Map<BooleanStateValue, bool> stateChanges;
 	final void Function(StateManager manager, StateTuple currentState, StateTuple nextState)? action;
-	/// When true, sequential queuing of this transition will be ignored.
-	///
-	/// When true, it is still possible for this transition to run multiple times, without another transition in between.
-	/// This can happen during state changes, when the new state invalidates queued transitions that were between this transition and itself in the queue.
+	/// When true, this transition will never appear sequentially after itself in the transition queue.
 	final bool ignoreDuplicates;
 
 	StateTransition({
