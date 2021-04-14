@@ -1,0 +1,495 @@
+import 'dart:collection';
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
+import '../BottomSheet/CustomBottomSheet.alt.widget.dart';
+import 'package:tuple/tuple.dart';
+import 'package:flutter_fsm/main.dart' as FSM;
+
+// FIXME: Sometimes, something with the bottom sheet can fail with a failed assertion from Scaffold.
+// ^this might actually be due to the FAB: Failed assertion: line 1205 pos 16: 'widget.currentController.status == AnimationStatus.dismissed': is not true.)
+// (or also occur because of the fab)
+// rapidly expand card, tap search button, tap back button,
+// The FAB also has something going on at the beginning of a frame.
+// In scaffold.dart _handlePreviousAnimationStatusChanged()
+
+class SearchFocusNode extends FocusNode {
+	SearchFocusNode(): super();
+}
+class SearchTextController extends TextEditingController {
+	SearchTextController(): super();
+}
+
+class _SearchableListDataManager<ListItemType> {
+	final Future<List<Map<String, dynamic>>> Function(String searchText, int pageSize, int offset) getItems;
+	final ListItemType Function(Map<String, dynamic> dbMap) fromDBMap;
+	final SearchableListStateModel<ListItemType> sm;
+
+	_SearchableListDataManager(
+		this.sm,
+		this.getItems,
+		this.fromDBMap
+	);
+
+	Future<Tuple2<bool, List<ListItemType>>> _getItems({
+		required String searchText,
+		int? offset
+	}) async {
+		return getItems(searchText, sm._pageSize, offset == null ? sm._entries.length : offset).then(
+			(List<Map<String, dynamic>> values) {
+				bool hasEndBeenFound = sm._endFound.value;
+				List<ListItemType> newItems = [];
+				if (values.isEmpty || values.length < sm._pageSize) {
+					hasEndBeenFound = true;
+				}
+				if (values.isNotEmpty) {
+					values.forEach(
+						(itemMap) {
+							newItems.add(fromDBMap(itemMap));
+						}
+					);
+				}
+				return Tuple2(hasEndBeenFound, newItems);
+			}
+		);
+	}
+
+}
+
+class SearchableListStateModel<ListItemType> extends ChangeNotifier {
+	SearchFocusNode _focusNode = SearchFocusNode();
+	/// Only use this for setting up ChangeNotifierProvider
+	SearchFocusNode get focusNode => _focusNode;
+	late final SearchableListDataModel<ListItemType> _dataModel;
+	/// Only use this for setting up ChangeNotifierProvider
+	SearchableListDataModel<ListItemType> get dataModel => _dataModel;
+	late final _SearchableListDataManager<ListItemType> _dataManager;
+	final SearchTextController _stc = SearchTextController();
+	/// Only use this for setting up ChangeNotifierProvider
+	SearchTextController get searchTextController => _stc;
+	final KeyboardVisibilityController _kvc = KeyboardVisibilityController();
+	final BottomSheetConfig Function()? _getBottomSheetConfig;
+	final BuildContext Function() _getScaffoldContext;
+	final CustomBottomSheetStateModel _cbssm = CustomBottomSheetStateModel();
+
+	SearchableListStateModel(
+		Future<List<Map<String, dynamic>>> Function(String searchText, int pageSize, int offset) getItems,
+		ListItemType Function(Map<String, dynamic> dbMap) fromDBMap,
+		BottomSheetConfig Function()? getBottomSheetConfig,
+		BuildContext Function() getScaffoldContext
+	): _getBottomSheetConfig = getBottomSheetConfig,
+		_getScaffoldContext  = getScaffoldContext {
+		_dataModel = SearchableListDataModel<ListItemType>(this);
+		_dataManager = _SearchableListDataManager<ListItemType>(
+			this,
+			getItems,
+			fromDBMap
+		);
+		_stc.addListener(_stcEvent);
+		_kvc.onChange.listen(_kvcEvent);
+		_cbssm.addListener(_bottomSheetEvent);
+
+		late FSM.BooleanStateValue shouldHideBottomSheet;
+		late FSM.BooleanStateValue isBottomSheetVisible;
+		// late FSM.BooleanStateValue shouldDisplayBottomSheet;
+		late FSM.BooleanStateValue shouldDisplaySearchBar;
+		late FSM.BooleanStateValue endFound;
+		late FSM.BooleanStateValue lazyLoading;
+		late FSM.BooleanStateValue searching;
+
+		FSM.StateManager? sm = FSM.StateManager.create(
+			showDebugLogs: true,
+			notifyListeners: notifyListeners,
+			managedValues: [
+				shouldHideBottomSheet = FSM.BooleanStateValue(
+					canChangeToFalse: (currentState, manager) => true,
+					canChangeToTrue: (currentState, manager) => manager.getFromState(currentState, isBottomSheetVisible)!,
+					value: false
+				),
+				isBottomSheetVisible = FSM.BooleanStateValue(
+					canChangeToFalse: (currentState, manager) => true,
+					canChangeToTrue: (currentState, manager) {
+						return !manager.getFromState(currentState, searching)!;
+					},
+					value: false
+				),
+				// shouldDisplayBottomSheet = FSM.BooleanStateValue(
+				// 	canChangeToFalse: (currentState, manager) => true,
+				// 	canChangeToTrue: (currentState, manager) {
+				// 		return !manager.getFromState(currentState, searching)!
+				// 			&& !manager.getFromState(currentState, isBottomSheetVisible)!
+				// 			&& !manager.getFromState(currentState, shouldHideBottomSheet)!;
+				// 	},
+				// 	value: false
+				// ),
+				shouldDisplaySearchBar = FSM.BooleanStateValue(
+					canChangeToFalse: (currentState, manager) => true,
+					canChangeToTrue: (currentState, manager) => true,
+					value: false
+				),
+				endFound = FSM.BooleanStateValue(
+					canChangeToFalse: (currentState, manager) => true,
+					canChangeToTrue: (currentState, manager) {
+						return true;
+					},
+					value: false
+				),
+				lazyLoading = FSM.BooleanStateValue(
+					canChangeToFalse: (currentState, manager) => true,
+					canChangeToTrue: (currentState, manager) {
+						return !manager.getFromState(currentState, endFound)!
+							&& !manager.getFromState(currentState, searching)!;
+					},
+					value: false
+				),
+				searching = FSM.BooleanStateValue(
+					canChangeToFalse: (currentState, manager) => true,
+					canChangeToTrue: (currentState, manager) {
+						return !manager.getFromState(currentState, lazyLoading)!
+							&& manager.getFromState(currentState, shouldDisplaySearchBar)!;
+					},
+					value: false
+				),
+			],
+			stateTransitions: [
+				// _setBottomSheetVisible = FSM.StateTransition(
+				// 	name: '_setBottomSheetVisible',
+				// 	stateChanges: {
+				// 		isBottomSheetVisible: true,
+				// 		shouldDisplayBottomSheet: false
+				// 	}
+				// ),
+				_setBottomSheetInvisible = FSM.StateTransition(
+					name: '_setBottomSheetInvisible',
+					stateChanges: {
+						isBottomSheetVisible: false,
+						shouldHideBottomSheet: false
+					}
+				),
+				showBottomSheet = FSM.StateTransition(
+					name: 'Show bottom sheet',
+					stateChanges: {
+						isBottomSheetVisible: true
+					},
+					ignoreDuplicates: true,
+					action: (manager, currentState, nextState) {
+						BottomSheetConfig? config = _getBottomSheetConfig == null ? null : _getBottomSheetConfig!();
+						if (config == null) {
+							manager.queueTransition(_setBottomSheetInvisible);
+						} else {
+							BuildContext context = _getScaffoldContext();
+							// Hide the keyboard if its up.
+							FocusScopeNode  focus = FocusScope.of(context);
+							if (!focus.hasPrimaryFocus && focus.focusedChild != null) {
+								FocusManager.instance.primaryFocus?.unfocus();
+							}
+							_cbssm.showCustomBottomSheet(
+								context: context,
+								minimizedHeight: config.minimizedHeight,
+								maximizedHeight: config.maximizedHeight,
+								width: config.width,
+								maximizedBody: config.maximizedBody,
+								minimizedBody: config.minimizedBody,
+								startMaximized: config.startExpanded,
+								disableSizeSnapping: config.disableSizeSnapping,
+							);
+						}
+					},
+				),
+				hideBottomSheet = FSM.StateTransition(
+					name: 'hideBottomSheet',
+					stateChanges: {
+						shouldHideBottomSheet: true
+					},
+					ignoreDuplicates: true,
+				),
+				enableSearching = FSM.StateTransition(
+					name: 'enableSearching',
+					stateChanges: {
+						shouldDisplaySearchBar: true
+					}
+				),
+				startLazyLoading = FSM.StateTransition(
+					name: 'startLazyLoading',
+					stateChanges: {
+						lazyLoading: true
+					},
+					ignoreDuplicates: true,
+					action: (manager, currentState, nextState) {
+						_dataManager._getItems(searchText: _searchText).then(
+							(results) {
+								_dataModel._addAll(results.item2);
+								if (results.item1) {
+									stateManager.queueTransition(_setEndFound);
+								} else {
+									stateManager.queueTransition(_stopLazyLoading);
+								}
+							}
+						).catchError(
+							(error) {
+								assert(false, error.toString());
+								stateManager.queueTransition(_setEndFound);
+							}
+						);
+					},
+				),
+				_setEndFound = FSM.StateTransition(
+					name: '_setEndFound',
+					stateChanges: {
+						endFound: true,
+						searching: false,
+						lazyLoading: false,
+					}
+				),
+				_stopLazyLoading = FSM.StateTransition(
+					name: '_stopLazyLoading',
+					stateChanges: {
+						lazyLoading: false,
+					}
+				),
+				_startSearching = FSM.StateTransition(
+					name: '_startSearching',
+					stateChanges: {
+						searching: true,
+						endFound: false
+					},
+					ignoreDuplicates: true,
+				),
+				_stopSearching = FSM.StateTransition(
+					name: '_stopSearching',
+					stateChanges: {
+						searching: false
+					}
+				),
+				reset = FSM.StateTransition(
+					name: 'reset',
+					stateChanges: {
+						shouldHideBottomSheet: false,
+						isBottomSheetVisible: false,
+						// shouldDisplayBottomSheet: false,
+						shouldDisplaySearchBar: false,
+						endFound: false,
+						lazyLoading: false,
+						searching: false
+					},
+					action: (manager, currentState, nextState) {
+						_cbssm.close();
+						_dataModel._clear();
+						_stc.removeListener(_stcEvent);
+						_stc.clear();
+						_searchText = '';
+						_stc.addListener(_stcEvent);
+					},
+				),
+			],
+			stateActions: [
+				FSM.StateAction(
+					name: 'search',
+					registeredStateValues: {
+						searching: true,
+					},
+					action: (manager, currentState) {
+						_dataManager._getItems(searchText: _searchText, offset: 0).then(
+							(results) {
+								_dataModel._replaceAll(results.item2);
+								if (results.item1) {
+									stateManager.queueTransition(_setEndFound);
+								} else {
+									stateManager.queueTransition(_stopSearching);
+								}
+							}
+						).catchError(
+							(error) {
+								assert(false, error.toString());
+								stateManager.queueTransition(_setEndFound);
+							}
+						);
+					},
+				),
+				FSM.StateAction(
+					name: 'hideBottomSheet',
+					registeredStateValues: {
+						shouldHideBottomSheet: true
+					},
+					action: (manager, currentState) {
+						_cbssm.close();
+					}
+				)
+			]
+		);
+
+		assert(sm != null, 'Failed to initialize the state manager.');
+		if (sm == null) {
+			throw 'Failed to initialize state manager';
+		}
+		stateManager = sm;
+
+		_shouldHideBottomSheet = stateManager.getManagedValue(shouldHideBottomSheet)!;
+		_isBottomSheetVisible = stateManager.getManagedValue(isBottomSheetVisible)!;
+		// _shouldDisplayBottomSheet = stateManager.getManagedValue(shouldDisplayBottomSheet)!;
+		_shouldDisplaySearchBar = stateManager.getManagedValue(shouldDisplaySearchBar)!;
+		_endFound = stateManager.getManagedValue(endFound)!;
+		_lazyLoading = stateManager.getManagedValue(lazyLoading)!;
+		_searching = stateManager.getManagedValue(searching)!;
+
+	}
+
+	late final FSM.StateManager stateManager;
+
+	bool get isBottomSheetVisible => _isBottomSheetVisible.value;
+	late final FSM.ManagedValue _isBottomSheetVisible;
+	// bool get shouldDisplayBottomSheet => _shouldDisplayBottomSheet.value;
+	// late final FSM.ManagedValue _shouldDisplayBottomSheet;
+	late final FSM.ManagedValue _shouldHideBottomSheet;
+
+	bool get shouldDisplaySearchBar => _shouldDisplaySearchBar.value;
+	late final FSM.ManagedValue _shouldDisplaySearchBar;
+	late final FSM.ManagedValue _endFound;
+	bool get endFound => _endFound.value;
+	bool get lazyLoading => _lazyLoading.value;
+	late final FSM.ManagedValue _lazyLoading;
+	bool get searching => _searching.value;
+	late final FSM.ManagedValue _searching;
+
+
+
+	// late final FSM.StateTransition _setBottomSheetVisible;
+	late final FSM.StateTransition _setBottomSheetInvisible;
+	late final FSM.StateTransition showBottomSheet;
+	late final FSM.StateTransition hideBottomSheet;
+
+	late final FSM.StateTransition enableSearching;
+	late final FSM.StateTransition startLazyLoading;
+	late final FSM.StateTransition _setEndFound;
+	late final FSM.StateTransition _stopLazyLoading;
+	late final FSM.StateTransition _startSearching;
+	late final FSM.StateTransition _stopSearching;
+	late final FSM.StateTransition reset;
+	// late final FSM.StateTransition _stopResetting;
+
+
+	bool _isBottomSheetMaximized = false;
+	bool get isBottomSheetMaximized => _isBottomSheetMaximized;
+	set _bottomSheetMaximized(bool isMaximized) {
+		if (_isBottomSheetMaximized != isMaximized) {
+			_isBottomSheetMaximized = isMaximized;
+			notifyListeners();
+		}
+	}
+	BOTTOM_SHEET_STATES _bsState = BOTTOM_SHEET_STATES.CLOSED;
+	void _bottomSheetEvent() {
+		if (_cbssm.value != _bsState) {
+			_bsState = _cbssm.value;
+			switch (_bsState) {
+				case BOTTOM_SHEET_STATES.CLOSED:
+					_bottomSheetMaximized = false;
+					stateManager.queueTransition(_setBottomSheetInvisible);
+					break;
+				case BOTTOM_SHEET_STATES.MAXIMIZED:
+					_bottomSheetMaximized = true;
+					// stateManager.queueTransition(_setBottomSheetVisible);
+					break;
+				case BOTTOM_SHEET_STATES.MINIMIZED:
+					_bottomSheetMaximized = false;
+					// stateManager.queueTransition(_setBottomSheetVisible);
+					break;
+			}
+		}
+	}
+
+	String _searchText = '';
+	void _stcEvent() {
+		if (_searchText != _stc.text) {
+			_searchText = _stc.text;
+			stateManager.queueTransition(_startSearching);
+		}
+	}
+
+	// While we can't control the keyboard, I'm converting events from KeyboardVisibilityController into inputs to this fsm
+	bool _keyboardVisible = false;
+	void _kvcEvent(bool visible) {
+		if (visible && !_keyboardVisible) {
+			_keyboardVisible = true;
+			stateManager.queueTransition(hideBottomSheet);
+		} else {
+			_keyboardVisible = visible;
+		}
+	}
+
+
+	// stored here because of reset(). Used in SearchableListDataModel so we can create independent sets of listeners.
+	final int _pageSize = 10;
+	List<ListItemType> _entries = [];
+
+
+}
+
+class SearchableListDataModel<ListItemType> extends ChangeNotifier {
+	late final SearchableListStateModel<ListItemType> _sm;
+
+	SearchableListDataModel(
+		SearchableListStateModel<ListItemType> searchModel
+	): _sm = searchModel;
+
+	int get pageSize => _sm._pageSize;
+	UnmodifiableListView<ListItemType> get entries => UnmodifiableListView(_sm._entries);
+	int get numEntries => _sm._entries.length;
+
+	void refreshEntry(int index, ListItemType newEntry) {
+		if (index < _sm._entries.length &&  _sm._entries[index] != newEntry) {
+			_sm._entries[index] = newEntry;
+			notifyListeners();
+		}
+	}
+	void removeEntry(int index) {
+		if (index < _sm._entries.length) {
+			_sm._entries.removeAt(index);
+			notifyListeners();
+		}
+	}
+	int? getIndexFromEntry(ListItemType entry) {
+		int index = _sm._entries.indexOf(entry);
+		if (index < 0) return null;
+		return index;
+	}
+
+
+	void _clear() {
+		if (_sm._entries.isNotEmpty) {
+			_sm._entries.clear();
+			notifyListeners();
+		}
+	}
+	void _addAll(List<ListItemType> items) {
+		if (items.isNotEmpty) {
+			_sm._entries.addAll(items);
+			notifyListeners();
+		}
+	}
+	void _replaceAll(List<ListItemType> items) {
+		_sm._entries.clear();
+		_sm._entries.addAll(items);
+		notifyListeners();
+	}
+}
+
+class BottomSheetConfig {
+	final double minimizedHeight;
+	final double maximizedHeight;
+	final double width;
+	final Widget? maximizedBody;
+	final Widget? minimizedBody;
+	final bool startExpanded;
+	final bool disableSizeSnapping;
+
+	BottomSheetConfig({
+		required this.minimizedHeight,
+		required this.maximizedHeight,
+		required this.width,
+		this.maximizedBody,
+		this.minimizedBody,
+		this.startExpanded = false,
+		this.disableSizeSnapping = false
+	});
+}
