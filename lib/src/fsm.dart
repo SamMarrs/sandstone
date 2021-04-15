@@ -42,7 +42,18 @@ class StateManager {
 		_optimisticTransitions = optimisticTransitions,
 		_showDebugLogs = showDebugLogs;
 
-	// Factory constructors can no longer return null values with null safety.
+	/// Attempts to initialize the [StateManager] and will return `null` upon failure.
+	///
+	/// [notifyListeners] is called every time a state changes.
+	///
+	/// [managedValues] is used to define the variables that make up a state within the FSM.
+	///
+	/// [stateTransitions] is used to (as the name suggests) define the transitions between states.
+	/// Using the [optimisticTransitions] option, you can configure this state manager to either:
+	/// 1. When `false`, only transition to states with the exact changes defined in the [StateTransition].
+	/// 2. When `true`, find a new state that has the minimal difference from the current state, and has the changes made by the [StateTransition].
+	///
+	/// In the second case, more state variables can change then specified in the [StateTransition].
 	static StateManager? create({
 		required void Function() notifyListeners,
 		required List<BooleanStateValue> managedValues,
@@ -120,6 +131,7 @@ class StateManager {
 		return bsm;
 	}
 
+	/// Returns the specified state value within the provided [StateTuple], given that [value] has been registered with this [StateManager].
 	bool? getFromState(StateTuple stateTuple, BooleanStateValue value) {
 		assert(stateTuple._manager == this, 'StateTuple must be from the same state manager.');
 		assert(_managedValues.containsKey(value), 'BooleanStateValue must have been registered with this state manager.');
@@ -140,6 +152,16 @@ class StateManager {
 
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
 	bool _performingTransition = false;
+	/// Queues a [StateTransition] to run.
+	///
+	/// The transition may not run immediately, or at all.
+	///
+	/// State transitions are queued in a buffer, and processed one at a time.
+	///
+	/// If queued transitions are no longer valid after a state change, they are removed from the queue.
+	///
+	/// If [StateTransition.ignoreDuplicates] is `true` for a given transition, any duplicates of that transition
+	/// are found sequentially in the queue, the sequential duplicates will be reduced to one entry.
 	void queueTransition(StateTransition transition) {
 		_queueTransition(transition);
 	}
@@ -509,10 +531,12 @@ class _ManagedStateAction {
 	}
 }
 
+/// Similar in function to [BooleanStateValue], but stores metadata needed by [StateManager] and other classes.
 class ManagedValue {
 	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) _canChangeToTrue;
 	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) _canChangeToFalse;
 	bool _value;
+	/// Returns the current value of this [ManagedValue].
 	bool get value => _value;
 	final int _position;
 	final StateManager _manager;
@@ -531,6 +555,9 @@ class ManagedValue {
 		return currentState._values[_position] ? _canChangeToFalse(currentState, nextState, _manager) : _canChangeToTrue(currentState, nextState, _manager);
 	}
 
+	/// Returns the value correlated to this [ManagedValue] within the provided [StateTuple].
+	///
+	/// Returns `null` if [stateTuple] was created by a different [StateManager] than this [ManagedValue].
 	bool? getFromState(StateTuple stateTuple) {
 		assert(stateTuple._manager == _manager, 'StateTuple must be from the same state manager.');
 		if (stateTuple._manager != _manager) return null;
@@ -539,13 +566,7 @@ class ManagedValue {
 
 }
 
-/// hashCode of Tuple must follow some rules.
-///
-/// IF TupleA.hashCode == TupleB.hashCode THEN TupleA == TupleB
-///
-/// IF TupleA == TupleB THEN TupleA.hashCode == TupleB.hashCode
-///
-/// These rules do not have to be followed when Two different classes that extend Tuple are compared to each other.
+/// Represents a state within a finite state machine.
 class StateTuple {
 	// TODO: It might be good to change this to a LinkedHashMap for some cleaner code.
 	late final UnmodifiableListView<bool> _values;
@@ -610,12 +631,21 @@ class StateTuple {
 		return st;
 	}
 
-	/// width of tuple;
+	/// Width of tuple.
 	int get width => _values.length;
 
+	/// List of values that define this state.
 	UnmodifiableListView<bool> get values => _values;
 
 	int? _hashCode;
+	/// hashCode of [StateTuple] must follow some rules.
+	///
+	/// IF TupleA.hashCode == TupleB.hashCode THEN TupleA == TupleB
+	///
+	/// IF TupleA == TupleB THEN TupleA.hashCode == TupleB.hashCode
+	///
+	/// These rules do not have to be followed when Two different classes that extend Tuple are compared to each other.
+	///
 	/// (true) => 1, (false) => 0
 	///
 	/// (true, false) => 01
