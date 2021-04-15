@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:tuple/tuple.dart';
 
 import 'List/list_state.dart';
+// import 'List/list_state.optimistic.dart';
 import 'List/SearchableList.widget.dart';
 
 void main() {
@@ -10,7 +11,6 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-	// This widget is the root of your application.
 	@override
 	Widget build(BuildContext context) {
 		return MaterialApp(
@@ -290,7 +290,6 @@ class _SearchableListTestState extends State<SearchableListTest> {
 			footerText: (context) {
 				SearchableListDataModel dm = Provider.of<SearchableListDataModel<TestItem>>(context, listen: false);
 				SearchableListStateModel sm = Provider.of<SearchableListStateModel<TestItem>>(context, listen: false);
-				// FIXME: While resetting, this briefly resolves to "No units found".
 				if (sm.searching || sm.lazyLoading) {
 					return 'Searching';
 				}

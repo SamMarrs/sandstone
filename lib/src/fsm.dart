@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:developer' as Developer;
+import 'dart:math' as Math;
 
 import 'package:flutter/cupertino.dart';
 
@@ -12,18 +13,11 @@ import 'FSMTests.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
 import 'unmanaged_classes/StateAction.dart';
 
-// TODO: Add a method to start a transition that clears and jumps the queue.
+// TODO: Possibly add a method to start a transition that clears and jumps the queue.
 // Kind of like a hard reset option.
 // Clearing the queue should be optional.
 
 
-// TODO: Build a version of StateManager that allows for side effects in state transitions.
-// This version will use canBeTrue/canBeFalse (like before the change to canChangeFromX).
-// canBeX will be a function of the current state and the previous state.
-// Instead of traversing the graph by transition changes, every possible combination of previous and next state will be considered.
-// The resulting adjacency list will be much larger and back to the state => ordered list of next state setup, but will allow side effects.
-// Since the current and previous states are considered, we are still able to purge the transition buffer if the queued transitions don't point to
-// a state adjacent to the new state.
 
 class StateManager {
 	final void Function() _notifyListeners;
@@ -38,14 +32,15 @@ class StateManager {
 	ManagedValue? getManagedValue(BooleanStateValue booleanStateValue) => _managedValues[booleanStateValue];
 
 	final bool _showDebugLogs;
+	final bool _optimisticTransitions;
 
 	StateManager._({
 		required void Function() notifyListener,
 		required bool showDebugLogs,
+		required bool optimisticTransitions
 	}): _notifyListeners = notifyListener,
-		_showDebugLogs = showDebugLogs {
-		// _doActions();
-	}
+		_optimisticTransitions = optimisticTransitions,
+		_showDebugLogs = showDebugLogs;
 
 	// Factory constructors can no longer return null values with null safety.
 	static StateManager? create({
@@ -53,9 +48,10 @@ class StateManager {
 		required List<BooleanStateValue> managedValues,
 		required List<StateTransition> stateTransitions,
 		List<StateAction>? stateActions,
-		bool showDebugLogs = false
+		bool showDebugLogs = false,
+		bool optimisticTransitions = false
 	}) {
-		StateManager bsm = StateManager._(notifyListener: notifyListeners, showDebugLogs: showDebugLogs);
+		StateManager bsm = StateManager._(notifyListener: notifyListeners, showDebugLogs: showDebugLogs, optimisticTransitions: optimisticTransitions);
 
 		// Create state transitions
 		HashSet<StateTransition> _stateTransitions = HashSet();
@@ -162,12 +158,6 @@ class StateManager {
 				}
 				return;
 			}
-			// TODO: This assertion might not work. It is supposed to fix a debounce of multiple sequential transitions.
-			// assert(_transitionBuffer.last != transition, 'The same transition has been queued sequentially.');
-			// Unfortunately, that breaks for things like counting rapid button presses,
-			// or if the processing of the buffer is lagging the input.
-			// After the buffer purge at the end of a state change, that might improperly trigger this check.
-			// [A, B, C] => purge => [A, B] => queue B => [A, B, B]
 			if (
 				transition.ignoreDuplicates
 				&& _transitionBuffer.isNotEmpty && _transitionBuffer.last == transition
@@ -306,7 +296,7 @@ class _StateGraph {
 		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> adjacencyList = HashMap();
 		HashSet<StateTransition> usedTransitions = HashSet();
 
-		void findNextStates(StateTuple state) {
+		void optimisticFindNextState(StateTuple state) {
 			if (adjacencyList.containsKey(state)) {
 				// This state has already been visited.
 				return;
@@ -314,6 +304,104 @@ class _StateGraph {
 			adjacencyList[state] = HashMap();
 			stateTransitions.forEach(
 				(transition) {
+					// Find next state with minimum difference from current state.
+					// Assert that there should only be one state with the minimum difference.
+					// If there is one or more states with the minimum difference, save only one as done in conservativeFindNextState
+					Map<int, bool> updates = {};
+					transition.stateChanges.forEach(
+						(key, value) {
+							assert(managedValues[key] != null);
+							updates[managedValues[key]!._position] = value;
+						}
+					);
+					bool hasNeededChanges(StateTuple nextState) {
+						return updates.entries.every(
+							(entry) {
+								return nextState.values[entry.key] == entry.value;
+							}
+						);
+					}
+					bool isValid(StateTuple nextState) {
+						return nextState._valueReferences.every(
+							(managedValue) {
+								bool newValue = nextState._values[managedValue._position];
+								bool oldValue = state._values[managedValue._position];
+								if (newValue == oldValue) {
+									return true;
+								} else {
+									return managedValue._canChange(state, nextState);
+								}
+							}
+						);
+					}
+					int findDifference(StateTuple a, StateTuple b) {
+						int diff = 0;
+						for (int i = 0; i < managedValues.length; i++) {
+							if (a._values[i] != b._values[i]) {
+								diff++;
+							}
+						}
+						return diff;
+					}
+
+
+					int? minDiff;
+					List<StateTuple> minDiffStates = [];
+					StateTuple? minDiffState;
+					int maxInt = (Math.pow(2, managedValues.length) as int) - 1;
+					for (int i = 0; i < maxInt; i++) {
+						StateTuple? nextState = StateTuple._fromHash(managedValues, manager, i);
+						if (
+							nextState != null
+							&& hasNeededChanges(nextState)
+							&& isValid(nextState)
+						) {
+							int diff = findDifference(state, nextState);
+							if (minDiff == null) {
+								minDiff = diff;
+								minDiffState = nextState;
+								minDiffStates = [nextState];
+							} else if (diff < minDiff) {
+								minDiff = diff;
+								minDiffState = nextState;
+								minDiffStates = [nextState];
+							} else if (diff == minDiff) {
+								minDiffStates.add(nextState);
+							}
+						}
+					}
+					if (minDiffStates.length > 1) {
+						FSMTests.noStateTransitionsWithMultipleResults(transition, state, minDiffStates);
+					}
+
+					if (minDiffState != null) {
+						usedTransitions.add(transition);
+						adjacencyList[state]![transition] = minDiffState;
+						if (!adjacencyList.containsKey(minDiffState)) {
+							optimisticFindNextState(minDiffState);
+						}
+					}
+				}
+			);
+		}
+
+		void conservativeFindNextState(StateTuple state) {
+			if (adjacencyList.containsKey(state)) {
+				// This state has already been visited.
+				return;
+			}
+			adjacencyList[state] = HashMap();
+			stateTransitions.forEach(
+				(transition) {
+					Map<int, bool> updates = {};
+					transition.stateChanges.forEach(
+						(key, value) {
+							assert(managedValues[key] != null);
+							updates[managedValues[key]!._position] = value;
+						}
+					);
+					StateTuple nextState = StateTuple._fromState(state, updates);
+
 					bool transitionIsValid = transition.stateChanges.entries.every(
 						(element) {
 							BooleanStateValue key = element.key;
@@ -324,30 +412,26 @@ class _StateGraph {
 							if (currentValue == newValue) {
 								return true;
 							} else {
-								return managedValue._canChange(state);
+								return managedValue._canChange(state, nextState);
 							}
 						}
 					);
 					if (transitionIsValid) {
 						usedTransitions.add(transition);
-						Map<int, bool> updates = {};
-						transition.stateChanges.forEach(
-							(key, value) {
-								assert(managedValues[key] != null);
-								updates[managedValues[key]!._position] = value;
-							}
-						);
-						StateTuple nextState = StateTuple._fromState(state, updates);
-
 						adjacencyList[state]![transition] = nextState;
 						if (!adjacencyList.containsKey(nextState)) {
-							findNextStates(nextState);
+							conservativeFindNextState(nextState);
 						}
 					}
 				}
 			);
 		}
-		findNextStates(initialState);
+
+		if (manager._optimisticTransitions) {
+			optimisticFindNextState(initialState);
+		} else {
+			conservativeFindNextState(initialState);
+		}
 		FSMTests.noUnusedTransitions(stateTransitions, usedTransitions);
 		return adjacencyList;
 	}
@@ -426,11 +510,10 @@ class _ManagedStateAction {
 }
 
 class ManagedValue {
-	final bool Function(StateTuple currentState, StateManager manager) _canChangeToTrue;
-	final bool Function(StateTuple currentState, StateManager manager) _canChangeToFalse;
+	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) _canChangeToTrue;
+	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) _canChangeToFalse;
 	bool _value;
 	bool get value => _value;
-	// only accessible BooleanStateManager
 	final int _position;
 	final StateManager _manager;
 
@@ -444,8 +527,8 @@ class ManagedValue {
 		_canChangeToFalse = managedValue.canChangeToFalse,
 		_canChangeToTrue = managedValue.canChangeToTrue;
 
-	bool _canChange(StateTuple state)  {
-		return state._values[_position] ? _canChangeToFalse(state, _manager) : _canChangeToTrue(state, _manager);
+	bool _canChange(StateTuple currentState, StateTuple nextState,)  {
+		return currentState._values[_position] ? _canChangeToFalse(currentState, nextState, _manager) : _canChangeToTrue(currentState, nextState, _manager);
 	}
 
 	bool? getFromState(StateTuple stateTuple) {
@@ -503,6 +586,28 @@ class StateTuple {
 				}
 			).toList(growable: false)
 		);
+	}
+
+	static StateTuple? _fromHash(
+		LinkedHashMap<BooleanStateValue, ManagedValue> valueReferences,
+		StateManager manager,
+		int stateHash
+	) {
+		assert(stateHash >= 0);
+		if (stateHash < 0) return null;
+		int maxInt = (Math.pow(2, valueReferences.length) as int) - 1;
+		assert(stateHash <= maxInt);
+		if (stateHash > maxInt) return null;
+
+		Map<int, bool> updates = {};
+		for (int i = 0; i < valueReferences.length; i++) {
+			int value = stateHash & (1 << i);
+			updates[i] = value > 0;
+		}
+		StateTuple st = StateTuple._fromMap(valueReferences, manager, updates);
+		st._hashCode = stateHash;
+
+		return st;
 	}
 
 	/// width of tuple;

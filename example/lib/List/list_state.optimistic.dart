@@ -10,7 +10,7 @@ import 'package:flutter_fsm/main.dart' as FSM;
 // FIXME: Sometimes, something with the bottom sheet can fail with a failed assertion from Scaffold.
 // ^this might actually be due to the FAB: Failed assertion: line 1205 pos 16: 'widget.currentController.status == AnimationStatus.dismissed': is not true.)
 // (or also occur because of the fab)
-// rapidly expand card, tap search button, tap back button,
+// rapidly expand card, tap search button, tap search bar,
 // The FAB also has something going on at the beginning of a frame.
 // In scaffold.dart _handlePreviousAnimationStatusChanged()
 
@@ -59,6 +59,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 
 		FSM.StateManager? sm = FSM.StateManager.create(
 			showDebugLogs: true,
+			optimisticTransitions: true,
 			notifyListeners: notifyListeners,
 			managedValues: [
 				shouldHideBottomSheet = FSM.BooleanStateValue(
@@ -69,7 +70,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 				isBottomSheetVisible = FSM.BooleanStateValue(
 					canChangeToFalse: (currentState, nextState, manager) => true,
 					canChangeToTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(currentState, searching)!;
+						return !manager.getFromState(currentState, searching)!
+							&& !manager.getFromState(nextState, searching)!;
 					},
 					value: false
 				),
@@ -81,7 +83,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 				endFound = FSM.BooleanStateValue(
 					canChangeToFalse: (currentState, nextState, manager) => true,
 					canChangeToTrue: (currentState, nextState, manager) {
-						return true;
+						return !manager.getFromState(nextState, searching)!;
 					},
 					value: false
 				),
@@ -89,15 +91,17 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					canChangeToFalse: (currentState, nextState, manager) => true,
 					canChangeToTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(currentState, endFound)!
-							&& !manager.getFromState(currentState, searching)!;
+							&& !manager.getFromState(nextState, searching)!
+							&& !manager.getFromState(currentState, lazyLoading)!;
 					},
 					value: false
 				),
 				searching = FSM.BooleanStateValue(
 					canChangeToFalse: (currentState, nextState, manager) => true,
 					canChangeToTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(currentState, lazyLoading)!
-							&& manager.getFromState(currentState, shouldDisplaySearchBar)!;
+						return !manager.getFromState(nextState, lazyLoading)!
+							&& manager.getFromState(currentState, shouldDisplaySearchBar)!
+							&& manager.getFromState(nextState, shouldDisplaySearchBar)!;
 					},
 					value: false
 				),
@@ -181,7 +185,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					name: '_setEndFound',
 					stateChanges: {
 						endFound: true,
-						searching: false,
 						lazyLoading: false,
 					}
 				),
@@ -210,7 +213,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					stateChanges: {
 						shouldHideBottomSheet: false,
 						isBottomSheetVisible: false,
-						// shouldDisplayBottomSheet: false,
 						shouldDisplaySearchBar: false,
 						endFound: false,
 						lazyLoading: false,
@@ -295,7 +297,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 
 
 
-	// late final FSM.StateTransition _setBottomSheetVisible;
 	late final FSM.StateTransition _setBottomSheetInvisible;
 	late final FSM.StateTransition showBottomSheet;
 	late final FSM.StateTransition hideBottomSheet;
@@ -307,7 +308,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 	late final FSM.StateTransition _startSearching;
 	late final FSM.StateTransition _stopSearching;
 	late final FSM.StateTransition reset;
-	// late final FSM.StateTransition _stopResetting;
 
 
 	bool _isBottomSheetMaximized = false;
@@ -356,12 +356,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 		}
 	}
 
-
-	// stored here because of reset(). Used in SearchableListDataModel so we can create independent sets of listeners.
-	final int _pageSize = 10;
-	List<ListItemType> _entries = [];
-
-	Future<Tuple2<bool, List<ListItemType>>> _getItems({
+		Future<Tuple2<bool, List<ListItemType>>> _getItems({
 		required String searchText,
 		int? offset
 	}) async {
@@ -383,6 +378,11 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 			}
 		);
 	}
+
+
+	// stored here because of reset(). Used in SearchableListDataModel so we can create independent sets of listeners.
+	final int _pageSize = 10;
+	List<ListItemType> _entries = [];
 
 
 }

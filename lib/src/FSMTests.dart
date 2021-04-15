@@ -86,4 +86,12 @@ class FSMTests {
 		return shouldRun;
 	}
 
+	static void noStateTransitionsWithMultipleResults(
+		StateTransition transition,
+		StateTuple previousState,
+		List<StateTuple> minDiffStates
+	) {
+		assert(false, 'Found ${minDiffStates.length} equally possible states to transition to for state ${previousState.hashCode.toString()} and transition "${transition.name}"');
+	}
+
 }

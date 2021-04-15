@@ -1,8 +1,10 @@
 import '../fsm.dart';
 
 class BooleanStateValue {
-	final bool Function(StateTuple currentState, StateManager manager) canChangeToTrue;
-	final bool Function(StateTuple currentState, StateManager manager) canChangeToFalse;
+	// TODO: Change signature to Function(StateTuple previousState, StateTuple nextState, StateManager manager)
+	// may not be needed
+	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) canChangeToTrue;
+	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) canChangeToFalse;
 	final bool value;
 
 	BooleanStateValue({
