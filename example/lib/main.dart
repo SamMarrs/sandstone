@@ -281,7 +281,15 @@ class _SearchableListTestState extends State<SearchableListTest> {
 					label: Text('Create'),
 					icon: Icon(Icons.add),
 					onPressed: () {
-						// TODO: add to _sampleData
+						Navigator.of(context).push(
+							MaterialPageRoute(
+								builder: (context) {
+									return Scaffold(
+										appBar: AppBar(),
+									);
+								}
+							)
+						);
 					}
 				),
 			),
