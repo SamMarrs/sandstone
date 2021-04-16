@@ -1,5 +1,5 @@
 import 'BooleanStateValue.dart';
-import '../fsm.dart';
+import '../StateManager.dart';
 
 /// Defines an action to run after a state change.
 class StateAction {

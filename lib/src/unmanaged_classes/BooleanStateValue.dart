@@ -1,4 +1,4 @@
-import '../fsm.dart';
+import '../StateManager.dart';
 
 /// Defines a variable that makes up a state within a finite state machine, and how that variable should change.
 ///
