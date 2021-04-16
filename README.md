@@ -1,3 +1,3 @@
 A state management library for Flutter.
 
-Better documentation hopefully coming soon.
+Better documentation coming soon.
