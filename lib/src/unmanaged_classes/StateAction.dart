@@ -14,7 +14,7 @@ class StateAction {
 	/// Unlike [StateTransition.action], this action will not run if a transition results in no state change.
 	///
 	/// This action will run after the state changes, and a new frame has been rendered (using WidgetsBinding.instance.addPostFrameCallback).
-	final void Function(StateManager manager, StateTuple currentState) action;
+	final void Function(StateManager manager) action;
 
 	StateAction({
 		required this.registeredStateValues,

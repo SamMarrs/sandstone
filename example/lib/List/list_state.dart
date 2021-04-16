@@ -116,7 +116,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 						isBottomSheetVisible: true
 					},
 					ignoreDuplicates: true,
-					action: (manager, currentState, nextState) {
+					action: (manager, additionalChanges) {
 						BottomSheetConfig? config = _getBottomSheetConfig == null ? null : _getBottomSheetConfig!();
 						if (config == null) {
 							manager.queueTransition(_setBottomSheetInvisible);
@@ -159,7 +159,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 						lazyLoading: true
 					},
 					ignoreDuplicates: true,
-					action: (manager, currentState, nextState) {
+					action: (manager, additionalChanges) {
 						_getItems(searchText: _searchText).then(
 							(results) {
 								_dataModel._addAll(results.item2);
@@ -216,7 +216,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 						lazyLoading: false,
 						searching: false
 					},
-					action: (manager, currentState, nextState) {
+					action: (manager, additionalChanges) {
 						_cbssm.close();
 						_dataModel._clear();
 						_stc.removeListener(_stcEvent);
@@ -232,7 +232,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					registeredStateValues: {
 						searching: true,
 					},
-					action: (manager, currentState) {
+					action: (manager) {
 						_getItems(searchText: _searchText, offset: 0).then(
 							(results) {
 								_dataModel._replaceAll(results.item2);
@@ -255,7 +255,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					registeredStateValues: {
 						shouldHideBottomSheet: true
 					},
-					action: (manager, currentState) {
+					action: (manager) {
 						_cbssm.close();
 					}
 				)

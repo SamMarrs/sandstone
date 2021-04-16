@@ -8,7 +8,7 @@ class _ManagedStateAction {
 	/// Used to check if this action should run for a given state.
 	final Map<int, bool> registeredStateValues;
 
-	final void Function(StateManager manager, StateTuple currentState) action;
+	final void Function(StateManager manager) action;
 
 
 	_ManagedStateAction({

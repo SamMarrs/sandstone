@@ -71,6 +71,21 @@ class StateTuple {
 	/// List of values that define this state.
 	UnmodifiableListView<bool> get values => _values;
 
+	static Map<BooleanStateValue, bool> _findDifference(StateTuple stateA, StateTuple stateB) {
+		assert(stateA._manager == stateB._manager);
+		if (stateA._manager != stateB._manager) return {};
+
+		Map<BooleanStateValue, bool> diff = {};
+		stateA._valueReferences.forEach(
+			(managedValue) {
+				if (stateA._values[managedValue._position] != stateB._values[managedValue._position]) {
+					diff[managedValue._stateValue] = stateB._values[managedValue._position];
+				}
+			}
+		);
+		return diff;
+	}
+
 	int? _hashCode;
 	/// hashCode of [StateTuple] must follow some rules.
 	///

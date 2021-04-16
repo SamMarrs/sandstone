@@ -150,7 +150,7 @@ class StateManager {
 		_managedStateActions.forEach(
 			(action) {
 				if (action.shouldRun(_stateGraph._currentState)) {
-					action.action(this, _stateGraph._currentState);
+					action.action(this);
 				}
 			}
 		);
@@ -258,7 +258,13 @@ class StateManager {
 		purgeQueue();
 
 		if (transition.action != null) {
-			transition.action!(this, currentState, nextState);
+			if (_optimisticTransitions) {
+				Map<BooleanStateValue, bool> diff = StateTuple._findDifference(currentState, nextState);
+				diff.removeWhere((key, value) => transition.stateChanges.containsKey(key));
+				transition.action!(this, diff);
+			} else {
+				transition.action!(this, {});
+			}
 		}
 		if (currentState != nextState) {
 			_notifyListeners();

@@ -20,7 +20,10 @@ class StateTransition {
 	/// Defines an action to run when this [StateTransition] runs.
 	///
 	/// Unlike [StateAction], this will run every time this [StateTransition] runs. Even when the state does not change.
-	final void Function(StateManager manager, StateTuple currentState, StateTuple nextState)? action;
+	///
+	/// When optimisticTransitions is enabled within [StateManager], [additionalChanges] will provide the
+	/// state changes that were not explicitly defined in this transition. The map will be empty otherwise.
+	final void Function(StateManager manager, Map<BooleanStateValue, bool> additionalChanges)? action;
 
 	/// When `true`, this [StateTransition] will never appear sequentially after itself in the transition queue.
 	final bool ignoreDuplicates;

@@ -9,6 +9,7 @@ class ManagedValue {
 	bool get value => _value;
 	final int _position;
 	final StateManager _manager;
+	final BooleanStateValue _stateValue;
 
 	ManagedValue._({
 		required BooleanStateValue managedValue,
@@ -18,7 +19,8 @@ class ManagedValue {
 		_manager = manager,
 		_value = managedValue.value,
 		_canChangeToFalse = managedValue.canChangeToFalse,
-		_canChangeToTrue = managedValue.canChangeToTrue;
+		_canChangeToTrue = managedValue.canChangeToTrue,
+		_stateValue = managedValue;
 
 	bool _canChange(StateTuple previous, StateTuple nextState,)  {
 		return previous._values[_position] ? _canChangeToFalse(previous, nextState, _manager) : _canChangeToTrue(previous, nextState, _manager);
