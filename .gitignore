@@ -30,6 +30,11 @@
 .pub/
 build/
 pubspec.lock
+android/
+ios/
+web/
+windows/
+
 
 # Android related
 **/android/**/gradle-wrapper.jar
