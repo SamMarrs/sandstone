@@ -18,7 +18,7 @@ import 'unmanaged_classes/StateAction.dart';
 // Clearing the queue should be optional.
 
 
-
+/// Creates and manages a finite state machine.
 class StateManager {
 	final void Function() _notifyListeners;
 
@@ -533,8 +533,8 @@ class _ManagedStateAction {
 
 /// Similar in function to [BooleanStateValue], but stores metadata needed by [StateManager] and other classes.
 class ManagedValue {
-	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) _canChangeToTrue;
-	final bool Function(StateTuple currentState, StateTuple nextState, StateManager manager) _canChangeToFalse;
+	final bool Function(StateTuple previous, StateTuple nextState, StateManager manager) _canChangeToTrue;
+	final bool Function(StateTuple previous, StateTuple nextState, StateManager manager) _canChangeToFalse;
 	bool _value;
 	/// Returns the current value of this [ManagedValue].
 	bool get value => _value;
@@ -551,8 +551,8 @@ class ManagedValue {
 		_canChangeToFalse = managedValue.canChangeToFalse,
 		_canChangeToTrue = managedValue.canChangeToTrue;
 
-	bool _canChange(StateTuple currentState, StateTuple nextState,)  {
-		return currentState._values[_position] ? _canChangeToFalse(currentState, nextState, _manager) : _canChangeToTrue(currentState, nextState, _manager);
+	bool _canChange(StateTuple previous, StateTuple nextState,)  {
+		return previous._values[_position] ? _canChangeToFalse(previous, nextState, _manager) : _canChangeToTrue(previous, nextState, _manager);
 	}
 
 	/// Returns the value correlated to this [ManagedValue] within the provided [StateTuple].
