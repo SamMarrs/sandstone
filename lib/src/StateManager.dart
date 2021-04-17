@@ -146,6 +146,7 @@ class StateManager {
 		return stateTuple._values[_managedValues[value]!._position];
 	}
 
+	// TODO: do the shouldRun calculations during initialization, and not here.
 	void _doActions() {
 		_managedStateActions.forEach(
 			(action) {

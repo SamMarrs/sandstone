@@ -69,7 +69,7 @@ class _StateGraph {
 					bool hasNeededChanges(StateTuple nextState) {
 						return updates.entries.every(
 							(entry) {
-								return nextState.values[entry.key] == entry.value;
+								return nextState._values[entry.key] == entry.value;
 							}
 						);
 					}
@@ -196,7 +196,7 @@ class _StateGraph {
 		_currentState = newState;
 		newState._valueReferences.forEach(
 			(managedValue) {
-				managedValue._value = newState.values[managedValue._position];
+				managedValue._value = newState._values[managedValue._position];
 			}
 		);
 	}

@@ -19,7 +19,7 @@ class StateTuple {
 			if (updates != null && updates.containsKey(i)) {
 				values.add(updates[i]!);
 			} else {
-				values.add(oldState.values[i]);
+				values.add(oldState._values[i]);
 			}
 		}
 		_values = UnmodifiableListView(values);
@@ -66,10 +66,7 @@ class StateTuple {
 	}
 
 	/// Width of tuple.
-	int get width => _values.length;
-
-	/// List of values that define this state.
-	UnmodifiableListView<bool> get values => _values;
+	int get _width => _values.length;
 
 	static Map<BooleanStateValue, bool> _findDifference(StateTuple stateA, StateTuple stateB) {
 		assert(stateA._manager == stateB._manager);
@@ -115,7 +112,7 @@ class StateTuple {
 	}
 
 	@override
-	bool operator ==(Object other) => other is StateTuple && other.width == width && other.hashCode == hashCode;
+	bool operator ==(Object other) => other is StateTuple && other._width == _width && other.hashCode == hashCode;
 
 
 	@override
