@@ -30,7 +30,7 @@ class StateManager {
 
 	late final _StateGraph _stateGraph;
 
-	late final List<_ManagedStateAction> _managedStateActions;
+	late final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions;
 
 	late final HashSet<StateTransition> _stateTransitions;
 
@@ -105,7 +105,9 @@ class StateManager {
 		bsm._stateGraph = stateGraph;
 
 		// Create state actions.
-		List<_ManagedStateAction> managedStateActions = [];
+		LinkedHashMap<StateTuple, List<_ManagedStateAction>> managedStateActions = LinkedHashMap()
+			..addEntries(bsm._stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
+		HashSet<StateAction> actionsThatMayRun = HashSet();
 		bool stateActionError = false;
 		if (stateActions != null) {
 			stateActions.forEach(
@@ -113,22 +115,28 @@ class StateManager {
 					if (
 						FSMTests.checkIfAllActionStateValuesRegistered(action, bsm._stateGraph._managedValues)
 					) {
-						_ManagedStateAction? sa = _ManagedStateAction.create(
+						_ManagedStateAction? msa = _ManagedStateAction.create(
 							managedValues: bsm._stateGraph._managedValues,
 							stateAction: action
 						);
-						if (sa != null) {
-							FSMTests.checkIfActionMayRun(
-								bsm._stateGraph._validStates,
-								(state) => sa.shouldRun(state),
-								sa.name
+						if (msa != null) {
+							bsm._stateGraph._validStates.forEach(
+								(state, _) {
+									if (msa.shouldRun(state)) {
+										actionsThatMayRun.add(action);
+										managedStateActions[state]!.add(msa);
+									}
+								}
 							);
-							managedStateActions.add(sa);
 						}
 					} else {
 						stateActionError = true;
 					}
 				}
+			);
+			FSMTests.checkIfAllActionsMayRun(
+				stateActions,
+				actionsThatMayRun
 			);
 		}
 		if (stateActionError) return null;
@@ -146,14 +154,9 @@ class StateManager {
 		return stateTuple._values[_managedValues[value]!._position];
 	}
 
-	// TODO: do the shouldRun calculations during initialization, and not here.
 	void _doActions() {
-		_managedStateActions.forEach(
-			(action) {
-				if (action.shouldRun(_stateGraph._currentState)) {
-					action.action(this);
-				}
-			}
+		_managedStateActions[_stateGraph._currentState]!.forEach(
+			(action) => action.action(this)
 		);
 	}
 

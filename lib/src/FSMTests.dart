@@ -76,14 +76,25 @@ class FSMTests {
 		return allRegistered;
 	}
 
-	static bool checkIfActionMayRun(
-		HashMap<StateTuple, dynamic> validStates,
-		bool Function(StateTuple) test,
-		String actionName
+	static bool checkIfAllActionsMayRun(
+		List<StateAction> stateActions,
+		HashSet<StateAction> actionsThatMayRun
 	) {
-		bool shouldRun = validStates.keys.any(test);
-		assert(shouldRun, 'State action with name "$actionName" will never run');
-		return shouldRun;
+		StateAction? wontRun;
+		stateActions.every(
+			(action) {
+				bool exists = actionsThatMayRun.contains(action);
+				if (!exists) {
+					wontRun = action;
+				}
+				return exists;
+			}
+		);
+		assert(
+			wontRun == null,
+			'State action with name "${wontRun!.name}" will never run'
+		);
+		return wontRun == null;
 	}
 
 	static void noStateTransitionsWithMultipleResults(
