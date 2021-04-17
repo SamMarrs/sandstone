@@ -19,11 +19,6 @@ part 'managed_classes/ManagedStateAction.dart';
 part 'managed_classes/StateGraph.dart';
 
 
-// TODO: Possibly add a method to start a transition that clears and jumps the queue.
-// Kind of like a hard reset option.
-// Clearing the queue should be optional.
-
-
 /// Creates and manages a finite state machine.
 class StateManager {
 	final void Function() _notifyListeners;
@@ -172,11 +167,26 @@ class StateManager {
 	///
 	/// If [StateTransition.ignoreDuplicates] is `true` for a given transition, any duplicates of that transition
 	/// are found sequentially in the queue, the sequential duplicates will be reduced to one entry.
-	void queueTransition(StateTransition transition) {
+	///
+	/// If [clearQueue] is `true`, all queued transitions are cleared, before queueing the provided transition.
+	void queueTransition(
+		StateTransition transition,
+		{
+			bool? clearQueue
+		}
+	) {
 		_queueTransition(transition);
 	}
 
-	void _queueTransition(StateTransition? transition) {
+	void _queueTransition(
+		StateTransition? transition,
+		{
+			bool? clearQueue
+		}
+	) {
+		if (clearQueue?? false) {
+			_transitionBuffer.clear();
+		}
 		if (transition == null) {
 			if (_transitionBuffer.isNotEmpty && !_performingTransition) {
 				Future(_processTransition);
