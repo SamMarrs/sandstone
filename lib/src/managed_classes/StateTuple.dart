@@ -65,9 +65,6 @@ class StateTuple {
 		return st;
 	}
 
-	/// Width of tuple.
-	int get _width => _values.length;
-
 	static Map<BooleanStateValue, bool> _findDifference(StateTuple stateA, StateTuple stateB) {
 		assert(stateA._manager == stateB._manager);
 		if (stateA._manager != stateB._manager) return {};
@@ -84,7 +81,7 @@ class StateTuple {
 	}
 
 	int? _hashCode;
-	/// hashCode of [StateTuple] must follow some rules.
+	/// hashCode of [StateTuple] must follow a few rules.
 	///
 	/// IF TupleA.hashCode == TupleB.hashCode THEN TupleA == TupleB
 	///
@@ -112,8 +109,7 @@ class StateTuple {
 	}
 
 	@override
-	bool operator ==(Object other) => other is StateTuple && other._width == _width && other.hashCode == hashCode;
-
+	bool operator ==(Object other) => other is StateTuple && other._values.length == _values.length && other.hashCode == hashCode;
 
 	@override
 	String toString() {

@@ -9,7 +9,7 @@ import 'unmanaged_classes/StateTransition.dart';
 
 import 'utils.dart';
 
-import 'FSMTests.dart';
+import 'fsm_testing/FSMTests.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
 import 'unmanaged_classes/StateAction.dart';
 

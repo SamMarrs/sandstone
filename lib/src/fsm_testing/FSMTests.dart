@@ -3,10 +3,10 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
-import 'StateManager.dart';
-import 'unmanaged_classes/BooleanStateValue.dart';
-import 'unmanaged_classes/StateAction.dart';
-import 'unmanaged_classes/StateTransition.dart';
+import '../StateManager.dart';
+import '../unmanaged_classes/BooleanStateValue.dart';
+import '../unmanaged_classes/StateAction.dart';
+import '../unmanaged_classes/StateTransition.dart';
 
 class FSMTests {
 	static bool noDuplicateTransitions(
