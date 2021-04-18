@@ -4,10 +4,10 @@ import 'dart:developer' as Developer;
 import 'dart:math' as Math;
 
 import 'package:flutter/cupertino.dart';
+import 'utilities/Utils.dart';
 
 import 'unmanaged_classes/StateTransition.dart';
 
-import 'utils.dart';
 
 import 'fsm_testing/FSMTests.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
@@ -18,6 +18,8 @@ part 'managed_classes/StateTuple.dart';
 part 'managed_classes/ManagedStateAction.dart';
 part 'managed_classes/StateGraph.dart';
 
+// TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
+// This shouldn't prevent initialization. It should only be a warning.
 
 /// Creates and manages a finite state machine.
 class StateManager {

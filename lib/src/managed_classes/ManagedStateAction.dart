@@ -1,5 +1,6 @@
 part of '../StateManager.dart';
 
+
 class _ManagedStateAction {
 	final String name;
 
