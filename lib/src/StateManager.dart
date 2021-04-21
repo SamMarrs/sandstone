@@ -177,7 +177,7 @@ class StateManager {
 			bool? clearQueue
 		}
 	) {
-		_queueTransition(transition);
+		_queueTransition(transition, clearQueue: clearQueue);
 	}
 
 	void _queueTransition(
@@ -262,7 +262,7 @@ class StateManager {
 					return !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
 				}
 			);
-			// If ignoreDuplicates is set, remove the transitions that might not be duplicated in the queue.
+			// If ignoreDuplicates is set, remove the transitions that might now be duplicated in the queue.
 			_transitionBuffer.forEachEntry(
 				(entry) {
 					if (entry.element.ignoreDuplicates && entry.previousEntry() != null && entry.element == entry.previousEntry()!.element) {
