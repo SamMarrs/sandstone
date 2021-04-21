@@ -3,8 +3,8 @@ A state management library for Flutter.
 ## Index
 1. [Index](#index)
 1. [Usage](#usage)
-	* [Conservative State Transitions](#Conservative-State-Transitions-\(Recommended\))
-	* [Optimistic State Transitions](#Optimistic-State-Transitions)
+    * [Conservative State Transitions](#Conservative-State-Transitions-\(Recommended\))
+    * [Optimistic State Transitions](#Optimistic-State-Transitions)
 
 ## Usage
 A complete example can be found [here](https://github.com/SamMarrs/sandstone/tree/main/example)
@@ -21,47 +21,47 @@ by the exact changes defined in a `StateTransition`. Check out the next [section
 
 ```dart
 class SearchableListStateModel extends ChangeNotifier {
-	late final FSM.ManagedValue _shouldDisplaySearchBar;
-	late final FSM.ManagedValue _endFound;
-	late final FSM.ManagedValue _lazyLoading;
-	late final FSM.ManagedValue _searching;
+    late final FSM.ManagedValue _shouldDisplaySearchBar;
+    late final FSM.ManagedValue _endFound;
+    late final FSM.ManagedValue _lazyLoading;
+    late final FSM.ManagedValue _searching;
 
-	// State variables that will be visible to anything that has access to this ChangeNotifier
+    // State variables that will be visible to anything that has access to this ChangeNotifier
     bool get shouldDisplaySearchBar => _shouldDisplaySearchBar.value;
-	bool get endFound => _endFound.value;
-	bool get lazyLoading => _lazyLoading.value;
-	bool get searching => _searching.value;
+    bool get endFound => _endFound.value;
+    bool get lazyLoading => _lazyLoading.value;
+    bool get searching => _searching.value;
 
-	// Pre-defined state transitions.
-	// These transitions can be used by anything that has access to them and a StateManger, to affect the underlying finite state machine.
-	// ex: stateManager.queueTransition(transitionName);
+    // Pre-defined state transitions.
+    // These transitions can be used by anything that has access to them and a StateManger, to affect the underlying finite state machine.
+    // ex: stateManager.queueTransition(transitionName);
     late final FSM.StateTransition enableSearching;
-	late final FSM.StateTransition startLazyLoading;
-	late final FSM.StateTransition reset;
-	late final FSM.StateTransition _setEndFound;
-	late final FSM.StateTransition _stopLazyLoading;
-	late final FSM.StateTransition _startSearching;
-	late final FSM.StateTransition _stopSearching;
+    late final FSM.StateTransition startLazyLoading;
+    late final FSM.StateTransition reset;
+    late final FSM.StateTransition _setEndFound;
+    late final FSM.StateTransition _stopLazyLoading;
+    late final FSM.StateTransition _startSearching;
+    late final FSM.StateTransition _stopSearching;
 
     SearchableListStateModel() {
-		// References to the state values being initialized in the FSM.
+        // References to the state values being initialized in the FSM.
         late FSM.BooleanStateValue shouldDisplaySearchBar;
         late FSM.BooleanStateValue endFound;
         late FSM.BooleanStateValue lazyLoading;
         late FSM.BooleanStateValue searching;
 
-		// Initialization function for StateManager, and the entry point for the library as a whole.
-		// The initialization can fail, but if in debug mode, messages will tell you how to fix it.
-		// These failure conditions should be mistakes in your code (if they're not, please report it) that are found
-		// by analyzing the underlying FSM.
+        // Initialization function for StateManager, and the entry point for the library as a whole.
+        // The initialization can fail, but if in debug mode, messages will tell you how to fix it.
+        // These failure conditions should be mistakes in your code (if they're not, please report it) that are found
+        // by analyzing the underlying FSM.
         FSM.StateManager? sm = FSM.StateManager.create(
-			// Useful debug messages.
+            // Useful debug messages.
             showDebugLogs: true,
-			// Should be a reference to ChangeNotifier.notifyListeners, or some similar function.
+            // Should be a reference to ChangeNotifier.notifyListeners, or some similar function.
             notifyListeners: notifyListeners,
             // Defines the managed state variables, and all valid states within the underlying FSM.
-			// The value property of each initialized BooleanStateValue defines the initial state of the FSM.
-			managedValues: [
+            // The value property of each initialized BooleanStateValue defines the initial state of the FSM.
+            managedValues: [
                 shouldDisplaySearchBar = FSM.BooleanStateValue(
                     canChangeToFalse: (currentState, nextState, manager) => true,
                     canChangeToTrue: (currentState, nextState, manager) => true,
@@ -75,15 +75,15 @@ class SearchableListStateModel extends ChangeNotifier {
                     value: false
                 ),
                 lazyLoading = FSM.BooleanStateValue(
-					// If a transition causes this state variable to change to false, is that change allowed?
+                    // If a transition causes this state variable to change to false, is that change allowed?
                     canChangeToFalse: (currentState, nextState, manager) => true,
-					// If a transition causes this state variable to change to true, is that change allowed?
+                    // If a transition causes this state variable to change to true, is that change allowed?
                     canChangeToTrue: (currentState, nextState, manager) {
-						// manager.getFromState retrieves the value for a state variable within the given state.
+                        // manager.getFromState retrieves the value for a state variable within the given state.
                         return !manager.getFromState(currentState, endFound)!
                             && !manager.getFromState(currentState, searching)!;
                     },
-					// Initial value for this state variable.
+                    // Initial value for this state variable.
                     value: false
                 ),
                 searching = FSM.BooleanStateValue(
@@ -95,7 +95,7 @@ class SearchableListStateModel extends ChangeNotifier {
                     value: false
                 ),
             ],
-			// Defines how the state of the FSM can be altered.
+            // Defines how the state of the FSM can be altered.
             stateTransitions: [
                 enableSearching = FSM.StateTransition(
                     name: 'enableSearching',
@@ -104,19 +104,19 @@ class SearchableListStateModel extends ChangeNotifier {
                     }
                 ),
                 startLazyLoading = FSM.StateTransition(
-					// The name is only used for debugging.
+                    // The name is only used for debugging.
                     name: 'startLazyLoading',
-					// Changes to the state that this transition will make.
-					// lazyLoading is the BooleanStateValue defined above.
+                    // Changes to the state that this transition will make.
+                    // lazyLoading is the BooleanStateValue defined above.
                     stateChanges: {
                         lazyLoading: true
                     },
-					// If true, this transition will not be applied to the FSM sequentially.
-					// At least one other transition must run before this can run again.
+                    // If true, this transition will not be applied to the FSM sequentially.
+                    // At least one other transition must run before this can run again.
                     ignoreDuplicates: true,
-					// Business logic to be run before the state changes are propagated to any listeners, and
-					// before the UI gets a chance to rebuild.
-					// With conservative state transitions, additionalChanges will always be an empty object.
+                    // Business logic to be run before the state changes are propagated to any listeners, and
+                    // before the UI gets a chance to rebuild.
+                    // With conservative state transitions, additionalChanges will always be an empty object.
                     action: (manager, additionalChanges) {
                         // Async logic used for lazy loading
                         //
@@ -168,17 +168,17 @@ class SearchableListStateModel extends ChangeNotifier {
                     },
                 ),
             ],
-			// Defines business logic to run when certain state values are a given value.
+            // Defines business logic to run when certain state values are a given value.
             stateActions: [
                 FSM.StateAction(
-					// Only used for debug purposes.
+                    // Only used for debug purposes.
                     name: 'search',
-					// Defines when this action will run.
-					// searching is the BooleanStateValue defined above.
+                    // Defines when this action will run.
+                    // searching is the BooleanStateValue defined above.
                     registeredStateValues: {
                         searching: true,
                     },
-					// Business logic to run after a state change, and after the UI rebuilds.
+                    // Business logic to run after a state change, and after the UI rebuilds.
                     action: (manager) {
                         // Async logic used for searching
                         //
@@ -220,83 +220,83 @@ minimum difference from the previous state will be used.
 
 ```dart
 class SearchableListStateModel extends ChangeNotifier {
-	// ManageValue references
-	// StateTransitionReferences
+    // ManageValue references
+    // StateTransitionReferences
 
-	SearchableListStateModel( ) {
+    SearchableListStateModel( ) {
 
-		// BooleanStateValueReferences
+        // BooleanStateValueReferences
 
-		FSM.StateManager? sm = FSM.StateManager.create(
-			showDebugLogs: true,
-			// Enable optimistic transitions
-			optimisticTransitions: true,
-			notifyListeners: notifyListeners,
-			managedValues: [
-				// shouldDisplaySearchBar = ...
-				endFound = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					// There's now some use in checking for values of the next state.
-					canChangeToTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(nextState, searching)!;
-					},
-					value: false
-				),
-				lazyLoading = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(currentState, endFound)!
-							&& !manager.getFromState(nextState, searching)!
-							&& !manager.getFromState(currentState, lazyLoading)!;
-					},
-					value: false
-				),
-				searching = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(nextState, lazyLoading)!
-							&& manager.getFromState(currentState, shouldDisplaySearchBar)!
-							&& manager.getFromState(nextState, shouldDisplaySearchBar)!;
-					},
-					value: false
-				),
-			],
-			stateTransitions: [
-				// enableSearching = ...
-				startLazyLoading = FSM.StateTransition(
-					name: 'startLazyLoading',
-					stateChanges: {
-						lazyLoading: true
-					},
-					ignoreDuplicates: true,
-					// With Optimistic transitions, additionalChanges will be a map defining all the
-					// changes not specified by this transition.
-					action: (manager, additionalChanges) {
-						// business logic
-					},
-				),
-				// Now, endFound can not be true when searching is true, so we no longer need to specify it in this transition.
-				// See the initialization of its BooleanStateValue: !manager.getFromState(nextState, searching)
-				// With Optimistic transitions, even though no transition may set both searching and endFound to true,
-				// we must specify that the state manager should not choose a state where both are true.
-				_setEndFound = FSM.StateTransition(
-					name: '_setEndFound',
-					stateChanges: {
-						endFound: true,
-						lazyLoading: false,
-					}
-				),
-				// _stopLazyLoading = ...
-				// _startSearching = ...
-				// _stopSearching = ...
-				// reset = ...
-			],
-			stateActions: [
-				// Nothing changed here
-			]
-		);
-		// Nothing changed here
-	}
+        FSM.StateManager? sm = FSM.StateManager.create(
+            showDebugLogs: true,
+            // Enable optimistic transitions
+            optimisticTransitions: true,
+            notifyListeners: notifyListeners,
+            managedValues: [
+                // shouldDisplaySearchBar = ...
+                endFound = FSM.BooleanStateValue(
+                    canChangeToFalse: (currentState, nextState, manager) => true,
+                    // There's now some use in checking for values of the next state.
+                    canChangeToTrue: (currentState, nextState, manager) {
+                        return !manager.getFromState(nextState, searching)!;
+                    },
+                    value: false
+                ),
+                lazyLoading = FSM.BooleanStateValue(
+                    canChangeToFalse: (currentState, nextState, manager) => true,
+                    canChangeToTrue: (currentState, nextState, manager) {
+                        return !manager.getFromState(currentState, endFound)!
+                            && !manager.getFromState(nextState, searching)!
+                            && !manager.getFromState(currentState, lazyLoading)!;
+                    },
+                    value: false
+                ),
+                searching = FSM.BooleanStateValue(
+                    canChangeToFalse: (currentState, nextState, manager) => true,
+                    canChangeToTrue: (currentState, nextState, manager) {
+                        return !manager.getFromState(nextState, lazyLoading)!
+                            && manager.getFromState(currentState, shouldDisplaySearchBar)!
+                            && manager.getFromState(nextState, shouldDisplaySearchBar)!;
+                    },
+                    value: false
+                ),
+            ],
+            stateTransitions: [
+                // enableSearching = ...
+                startLazyLoading = FSM.StateTransition(
+                    name: 'startLazyLoading',
+                    stateChanges: {
+                        lazyLoading: true
+                    },
+                    ignoreDuplicates: true,
+                    // With Optimistic transitions, additionalChanges will be a map defining all the
+                    // changes not specified by this transition.
+                    action: (manager, additionalChanges) {
+                        // business logic
+                    },
+                ),
+                // Now, endFound can not be true when searching is true, so we no longer need to specify it in this transition.
+                // See the initialization of its BooleanStateValue: !manager.getFromState(nextState, searching)
+                // With Optimistic transitions, even though no transition may set both searching and endFound to true,
+                // we must specify that the state manager should not choose a state where both are true.
+                _setEndFound = FSM.StateTransition(
+                    name: '_setEndFound',
+                    stateChanges: {
+                        endFound: true,
+                        lazyLoading: false,
+                    }
+                ),
+                // _stopLazyLoading = ...
+                // _startSearching = ...
+                // _stopSearching = ...
+                // reset = ...
+            ],
+            stateActions: [
+                // Nothing changed here
+            ]
+        );
+        // Nothing changed here
+    }
 }
 ```
 
