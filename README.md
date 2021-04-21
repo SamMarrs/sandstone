@@ -1,5 +1,11 @@
 A state management library for Flutter.
 
+## Index
+1. [Index](#index)
+1. [Usage](#usage)
+	* [Conservative State Transitions](#Conservative-State-Transitions-\(Recommended\))
+	* [Optimistic State Transitions](#Optimistic-State-Transitions)
+
 ## Usage
 A complete example can be found [here](https://github.com/SamMarrs/sandstone/tree/main/example)
 
