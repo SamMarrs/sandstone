@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import '../BottomSheet/CustomBottomSheet.alt.widget.dart';
 import 'package:tuple/tuple.dart';
-import 'package:flutter_fsm/main.dart' as FSM;
+import 'package:sandstone/main.dart' as FSM;
 
 // FIXME: Sometimes, something with the bottom sheet can fail with a failed assertion from Scaffold.
 // ^this might actually be due to the FAB: Failed assertion: line 1205 pos 16: 'widget.currentController.status == AnimationStatus.dismissed': is not true.)

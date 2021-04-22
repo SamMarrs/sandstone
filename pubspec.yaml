@@ -1,7 +1,7 @@
-name: flutter_fsm
-description: A new state management solution
-version: 0.0.1
-author:
+name: sandstone
+description: An FSM backed state management solution
+version: 1.0.0
+author: Sam Marrs
 homepage:
 
 environment:

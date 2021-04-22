@@ -1,4 +1,4 @@
-name: fsm_example
+name: sandstone_example
 publish_to: 'none'
 
 environment:
@@ -14,7 +14,7 @@ dependencies:
   quiver: ^3.0.0
   flutter_keyboard_visibility: ^5.0.0
   cupertino_icons: ^1.0.2
-  flutter_fsm:
+  sandstone:
 
 
 dev_dependencies:
@@ -22,7 +22,7 @@ dev_dependencies:
     sdk: flutter
 
 dependency_overrides:
-  flutter_fsm:
+  sandstone:
     path: ../
 
 flutter:
