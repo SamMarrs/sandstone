@@ -1,4 +1,4 @@
-A state management library for Flutter.
+Sandstone is a new state management library for Flutter. It is designed to convert common coding patterns into a predictable finite state machine. The library provides tools to cleanly manage and organize business logic, while being able to warn of potential mistakes through analysis of the underlying FSM.
 
 ## Index
 1. [Index](#index)

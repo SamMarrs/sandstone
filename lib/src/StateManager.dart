@@ -21,6 +21,8 @@ part 'managed_classes/StateGraph.dart';
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
 
+// TODO: Create API for which people can access information about the underlying FSM, in order to create their own tests.
+
 /// Creates and manages a finite state machine.
 class StateManager {
 	final void Function() _notifyListeners;
