@@ -34,7 +34,7 @@ class StateManager {
 
 	late final _StateGraph _stateGraph;
 
-	final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions = LinkedHashMap();
+	late final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions;
 
 	final HashSet<Transition> _stateTransitions = HashSet();
 	final HashSet<MirroredTransition> _mirroredTransitions = HashSet();
@@ -47,6 +47,7 @@ class StateManager {
 	final bool _showDebugLogs;
 	final bool _optimisticTransitions;
 	final StateValidationLogic _stateValidationLogic;
+	final void Function(void Function())? _addPostTransitionCallback;
 
 	bool _transitionsPaused = false;
 	/// When `shouldIgnore` is set to `true`, queuing of all non-mirrored transitions will be ignored,
@@ -78,11 +79,13 @@ class StateManager {
 		required void Function() notifyListener,
 		required bool showDebugLogs,
 		required bool optimisticTransitions,
-		required StateValidationLogic stateValidationLogic
+		required StateValidationLogic stateValidationLogic,
+		void Function(void Function())? addPostTransitionCallback,
 	}): _notifyListeners = notifyListener,
 		_optimisticTransitions = optimisticTransitions,
 		_showDebugLogs = showDebugLogs,
-		_stateValidationLogic = stateValidationLogic;
+		_stateValidationLogic = stateValidationLogic,
+		_addPostTransitionCallback = addPostTransitionCallback;
 
 	/// Attempts to initialize the [StateManager] and will return `null` upon failure.
 	///
@@ -98,6 +101,9 @@ class StateManager {
 	/// In the second case, more state variables can change then specified in the [StateTransition].
 	///
 	/// See [StateValidationLogic] for information on [stateValidationLogic]
+	/// By default, state actions are run at the end of a frame using `WidgetsBinding.instance.addPostFrameCallback`.
+	/// This can overridden using [addPostTransitionCallback].
+	/// [addPostTransitionCallback] must mimic [addPostFrameCallback] in that the callback function is only called once.
 	static StateManager? create({
 		required void Function() notifyListeners,
 		required List<BooleanStateValue> managedValues,
@@ -106,7 +112,8 @@ class StateManager {
 		List<StateAction>? stateActions,
 		bool showDebugLogs = false,
 		bool optimisticTransitions = false,
-		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX
+		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX,
+		void Function(void Function())? addPostTransitionCallback,
 	}) {
 		StateManager bsm = StateManager._(
 			notifyListener: notifyListeners,
@@ -588,15 +595,27 @@ class StateManager {
 		if (currentState != nextState) {
 			_notifyListeners();
 		}
-		assert(WidgetsBinding.instance != null);
-		WidgetsBinding.instance!.addPostFrameCallback(
-			(timeStamp) {
-				if (currentState != nextState) {
-					_doActions();
+		if (_addPostTransitionCallback != null) {
+			_addPostTransitionCallback!(
+				() {
+					if (currentState != nextState) {
+						_doActions();
+					}
+					_performingTransition = false;
+					_queueTransition(null);
 				}
-				_performingTransition = false;
-				_queueTransition(null);
-			}
-		);
+			);
+		} else {
+			assert(WidgetsBinding.instance != null);
+			WidgetsBinding.instance!.addPostFrameCallback(
+				(timeStamp) {
+					if (currentState != nextState) {
+						_doActions();
+					}
+					_performingTransition = false;
+					_queueTransition(null);
+				}
+			);
+		}
 	}
 }
