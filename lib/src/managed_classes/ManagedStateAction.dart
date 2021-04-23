@@ -1,7 +1,7 @@
 part of '../StateManager.dart';
 
 
-class _ManagedStateAction {
+class ManagedStateAction {
 	final String name;
 
 	/// A map of _ManagedValue indices to a value for that _ManagedValue.
@@ -12,13 +12,13 @@ class _ManagedStateAction {
 	final void Function(StateManager manager) action;
 
 
-	_ManagedStateAction({
+	ManagedStateAction({
 		required this.registeredStateValues,
 		required this.action,
 		required this.name,
 	});
 
-	static _ManagedStateAction? create({
+	static ManagedStateAction? create({
 		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
 		required StateAction stateAction
 	}) {
@@ -32,7 +32,7 @@ class _ManagedStateAction {
 			if (!managedValues.containsKey(entries[i].key)) return null;
 			rStateValues[managedValues[entries[i].key]!._position] = entries[i].value;
 		}
-		return _ManagedStateAction(
+		return ManagedStateAction(
 			registeredStateValues: rStateValues,
 			action: stateAction.action,
 			name: stateAction.name,

@@ -1,6 +1,6 @@
 part of '../StateManager.dart';
 
-class _StateGraph {
+class StateGraph {
 	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues;
 
 	final HashMap<StateTuple, HashMap<StateTransition, StateTuple>> _validStates;
@@ -9,7 +9,7 @@ class _StateGraph {
 
 	final StateManager _manager;
 
-	_StateGraph._({
+	StateGraph._({
 		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
 		required HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates,
 		required StateTuple currentState,
@@ -19,19 +19,19 @@ class _StateGraph {
 		_currentState = currentState,
 		_manager = manager;
 
-	static _StateGraph? create({
+	static StateGraph? create({
 		required StateManager manager,
 		required HashSet<StateTransition> stateTransitions,
 		required LinkedHashMap<BooleanStateValue, ManagedValue> unmanagedToManagedValues
 	}) {
 
-		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates = _StateGraph._buildAdjacencyList(
+		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates = StateGraph._buildAdjacencyList(
 			managedValues: unmanagedToManagedValues,
 			manager: manager,
 			stateTransitions: stateTransitions
 		);
 		StateTuple currentState = StateTuple._fromMap(unmanagedToManagedValues, manager);
-		return _StateGraph._(
+		return StateGraph._(
 			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
 			currentState: currentState,

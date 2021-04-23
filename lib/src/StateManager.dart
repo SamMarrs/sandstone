@@ -28,9 +28,9 @@ part 'managed_classes/StateGraph.dart';
 class StateManager {
 	final void Function() _notifyListeners;
 
-	late final _StateGraph _stateGraph;
+	late final StateGraph _stateGraph;
 
-	final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions = LinkedHashMap();
+	late final LinkedHashMap<StateTuple, List<ManagedStateAction>> _managedStateActions;
 
 	final HashSet<StateTransition> _stateTransitions = HashSet();
 	final HashSet<MirroredTransition> _mirroredTransitions = HashSet();
@@ -43,16 +43,19 @@ class StateManager {
 	final bool _showDebugLogs;
 	final bool _optimisticTransitions;
 	final StateValidationLogic _stateValidationLogic;
+	final void Function(void Function())? _addPostTransitionCallback;
 
 	StateManager._({
 		required void Function() notifyListener,
 		required bool showDebugLogs,
 		required bool optimisticTransitions,
-		required StateValidationLogic stateValidationLogic
+		required StateValidationLogic stateValidationLogic,
+		void Function(void Function())? addPostTransitionCallback,
 	}): _notifyListeners = notifyListener,
 		_optimisticTransitions = optimisticTransitions,
 		_showDebugLogs = showDebugLogs,
-		_stateValidationLogic = stateValidationLogic;
+		_stateValidationLogic = stateValidationLogic,
+		_addPostTransitionCallback = addPostTransitionCallback;
 
 	/// Attempts to initialize the [StateManager] and will return `null` upon failure.
 	///
@@ -68,6 +71,9 @@ class StateManager {
 	/// In the second case, more state variables can change then specified in the [StateTransition].
 	///
 	/// See [StateValidationLogic] for information on [stateValidationLogic]
+	/// By default, state actions are run at the end of a frame using `WidgetsBinding.instance.addPostFrameCallback`.
+	/// This can overridden using [addPostTransitionCallback].
+	/// [addPostTransitionCallback] must mimic [addPostFrameCallback] in that the callback function is only called once.
 	static StateManager? create({
 		required void Function() notifyListeners,
 		required List<BooleanStateValue> managedValues,
@@ -76,7 +82,8 @@ class StateManager {
 		List<FSMMirror>? mirroredFSMs,
 		bool showDebugLogs = false,
 		bool optimisticTransitions = false,
-		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX
+		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX,
+		void Function(void Function())? addPostTransitionCallback,
 	}) {
 		StateManager bsm = StateManager._(
 			notifyListener: notifyListeners,
@@ -172,7 +179,7 @@ class StateManager {
 			HashSet<StateTransition> stateTransitions,
 			LinkedHashMap<BooleanStateValue, ManagedValue> managedValues
 		) {
-			_StateGraph? stateGraph = _StateGraph.create(
+			StateGraph? stateGraph = StateGraph.create(
 				manager: manager,
 				stateTransitions: stateTransitions,
 				unmanagedToManagedValues: managedValues
@@ -187,7 +194,7 @@ class StateManager {
 		bool initializeStateActions(
 			StateManager manager,
 			List<StateAction>? stateActions,
-			_StateGraph stateGraph
+			StateGraph stateGraph
 		) {
 			// FIXME: This creates a map with many empty items. Change to only store keys that are attached to actions.
 			manager._managedStateActions..addEntries(stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
@@ -199,7 +206,7 @@ class StateManager {
 						if (
 							FSMTests.checkIfAllActionStateValuesRegistered(action, stateGraph._managedValues)
 						) {
-							_ManagedStateAction? msa = _ManagedStateAction.create(
+							ManagedStateAction? msa = ManagedStateAction.create(
 								managedValues: stateGraph._managedValues,
 								stateAction: action
 							);
@@ -451,15 +458,27 @@ class StateManager {
 		if (currentState != nextState) {
 			_notifyListeners();
 		}
-		assert(WidgetsBinding.instance != null);
-		WidgetsBinding.instance!.addPostFrameCallback(
-			(timeStamp) {
-				if (currentState != nextState) {
-					_doActions();
+		if (_addPostTransitionCallback != null) {
+			_addPostTransitionCallback!(
+				() {
+					if (currentState != nextState) {
+						_doActions();
+					}
+					_performingTransition = false;
+					_queueTransition(null);
 				}
-				_performingTransition = false;
-				_queueTransition(null);
-			}
-		);
+			);
+		} else {
+			assert(WidgetsBinding.instance != null);
+			WidgetsBinding.instance!.addPostFrameCallback(
+				(timeStamp) {
+					if (currentState != nextState) {
+						_doActions();
+					}
+					_performingTransition = false;
+					_queueTransition(null);
+				}
+			);
+		}
 	}
 }
