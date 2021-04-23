@@ -2,7 +2,6 @@ name: sandstone
 description: An FSM backed state management solution
 version: 1.0.0
 author: Sam Marrs
-homepage:
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
@@ -11,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  tuple: ^2.0.0
 
 dev_dependencies:
   flutter_test:
