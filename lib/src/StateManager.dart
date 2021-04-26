@@ -20,6 +20,7 @@ part 'managed_classes/ManagedValue.dart';
 part 'managed_classes/StateTuple.dart';
 part 'managed_classes/ManagedStateAction.dart';
 part 'managed_classes/StateGraph.dart';
+part 'fsm_testing/Testable.dart';
 
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
@@ -44,6 +45,17 @@ class StateManager {
 	final bool _optimisticTransitions;
 	final StateValidationLogic _stateValidationLogic;
 	final void Function(void Function())? _addPostTransitionCallback;
+
+	late final Testable? _testable;
+	Testable get testable {
+		if (_testable == null) {
+			_testable = Testable._(
+				stateGraph: _stateGraph,
+				manager: this
+			);
+		}
+		return _testable!;
+	}
 
 	StateManager._({
 		required void Function() notifyListener,
