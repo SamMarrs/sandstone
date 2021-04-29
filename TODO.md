@@ -1,0 +1,8 @@
+It might be useful to allow multiple FSMs to interact under these conditions.
+1. A parent FSM (higher up in the widget tree) has no knowledge of any child FSMs (with one exception)
+1. While a child FSM runs, no inputs are givin to the parent FSM.
+1. When a child FSM finishes its task (ex: the route that contains it pops), it is allowed to send a custom set of inputs (`StateTransition` not defined by the parent) to the parent FSM.
+	- This is the one exception where the parent, at some point, will need to know about the inputs provided by the child.
+
+
+A partial example can be found within the searchable list example project. Currently the "Create" FAB pushes a new route, but doesn't do anything else. That button is supposed to represent the creation of a list item. The new route represents the handoff of control between a parent FSM (`SearchableListStateModel`) and a child FSM (whatever is used to represent the new route). If the new route may return a new list item, or fails to do so, the handoff back to the parent FSM will conditionally differ. The developer may want to refresh the list, scroll to the new item, display the new item in a bottom sheet (expanded or minimized), keep any active searches, reset everything, etc. Not all of these handoff conditions may be supported by the transitions already defined in the parent. If the parent is in a third-party package, the developer won't be able to implement these transitions without a way to extend that parent FSM.
