@@ -11,6 +11,7 @@ class Testable {
 
 	final StateManager _manager;
 	bool containsTransition(StateTransition transition) => _manager._stateTransitions.contains(transition);
+	UnmodifiableListView<StateTransition> getTransitionQueue() => UnmodifiableListView(_manager._transitionBuffer);
 	// TODO: add something for emitting information about an active transition
 	// emit:
 	// 1. active transition
