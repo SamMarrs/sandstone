@@ -22,7 +22,15 @@ part 'managed_classes/StateGraph.dart';
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
 
-// TODO: Create API for which people can access information about the underlying FSM, in order to create their own tests.
+// TODO: Add option to treat canChangeFromX as canBeX functions.
+// With this enabled, every state value with canBeX must say a state is valid for it to be added to the fsm.
+// This differs from canChangeFromX where only the state values that change are tested.
+
+// TODO: Add method of integrating external inputs that will cause a state change regardless of the current state.
+// This includes things like the keyboard. A value listener emits when the keyboard is up or down. The change cannot be prevented by any
+// conditions within a BooleanStateValue. The FSM state just needs to update immediately after the change.
+// One partial option is to allow transitions to jump the queue without clearing it.
+
 
 /// Creates and manages a finite state machine.
 class StateManager {
@@ -177,16 +185,18 @@ class StateManager {
 	void queueTransition(
 		StateTransition transition,
 		{
-			bool? clearQueue
+			bool? clearQueue,
+			bool? jumpQueue
 		}
 	) {
-		_queueTransition(transition, clearQueue: clearQueue);
+		_queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
 	}
 
 	void _queueTransition(
 		StateTransition? transition,
 		{
-			bool? clearQueue
+			bool? clearQueue,
+			bool? jumpQueue,
 		}
 	) {
 		if (clearQueue?? false) {
@@ -207,14 +217,22 @@ class StateManager {
 			}
 			if (
 				transition.ignoreDuplicates
-				&& _transitionBuffer.isNotEmpty && _transitionBuffer.last == transition
+				&& _transitionBuffer.isNotEmpty
+				&& (
+					( (jumpQueue?? false) && _transitionBuffer.first == transition )
+					|| ( (!(jumpQueue?? false)) && _transitionBuffer.last == transition )
+				)
 			) {
 				if (_showDebugLogs) {
 					Developer.log('Ignoring transition "${transition.name}" because ignoreDuplicate is set.');
 				}
 				return;
 			}
-			_transitionBuffer.addLast(transition);
+			if ((jumpQueue?? false)) {
+				_transitionBuffer.addFirst(transition);
+			} else {
+				_transitionBuffer.addLast(transition);
+			}
 			if (!_performingTransition) {
 				Future(_processTransition);
 			}
