@@ -22,15 +22,22 @@ part 'managed_classes/StateGraph.dart';
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
 
-// TODO: Add option to treat canChangeFromX as canBeX functions.
-// With this enabled, every state value with canBeX must say a state is valid for it to be added to the fsm.
-// This differs from canChangeFromX where only the state values that change are tested.
-
 // TODO: Add method of integrating external inputs that will cause a state change regardless of the current state.
 // This includes things like the keyboard. A value listener emits when the keyboard is up or down. The change cannot be prevented by any
 // conditions within a BooleanStateValue. The FSM state just needs to update immediately after the change.
 // One partial option is to allow transitions to jump the queue without clearing it.
 
+/// This represents various ways states are determined to be valid when the state manager initializes, and constructs the FSM.
+///
+/// When [canBeX] is used, every [BooleanStateValue] marked as such must have their validate functions return true for a state to be valid.
+///
+/// When [canChangeToX] is used, only the [BooleanStateValues] that have changed values will be used to evaluate the validity of a state after a transition.
+///
+/// These two options can be intermixed.
+enum StateValidationLogic {
+	canBeX,
+	canChangeToX
+}
 
 /// Creates and manages a finite state machine.
 class StateManager {
@@ -42,19 +49,24 @@ class StateManager {
 
 	late final HashSet<StateTransition> _stateTransitions;
 
+	final HashSet<ManagedValue> _canBeXStates = HashSet();
+	final HashSet<ManagedValue> _canChangeToXStates = HashSet();
 	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues = LinkedHashMap();
 	ManagedValue? getManagedValue(BooleanStateValue booleanStateValue) => _managedValues[booleanStateValue];
 
 	final bool _showDebugLogs;
 	final bool _optimisticTransitions;
+	final StateValidationLogic _stateValidationLogic;
 
 	StateManager._({
 		required void Function() notifyListener,
 		required bool showDebugLogs,
-		required bool optimisticTransitions
+		required bool optimisticTransitions,
+		required StateValidationLogic stateValidationLogic
 	}): _notifyListeners = notifyListener,
 		_optimisticTransitions = optimisticTransitions,
-		_showDebugLogs = showDebugLogs;
+		_showDebugLogs = showDebugLogs,
+		_stateValidationLogic = stateValidationLogic;
 
 	/// Attempts to initialize the [StateManager] and will return `null` upon failure.
 	///
@@ -68,15 +80,23 @@ class StateManager {
 	/// 2. When `true`, find a new state that has the minimal difference from the current state, and has the changes made by the [StateTransition].
 	///
 	/// In the second case, more state variables can change then specified in the [StateTransition].
+	///
+	/// See [StateValidationLogic] for information on [stateValidationLogic]
 	static StateManager? create({
 		required void Function() notifyListeners,
 		required List<BooleanStateValue> managedValues,
 		required List<StateTransition> stateTransitions,
 		List<StateAction>? stateActions,
 		bool showDebugLogs = false,
-		bool optimisticTransitions = false
+		bool optimisticTransitions = false,
+		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX
 	}) {
-		StateManager bsm = StateManager._(notifyListener: notifyListeners, showDebugLogs: showDebugLogs, optimisticTransitions: optimisticTransitions);
+		StateManager bsm = StateManager._(
+			notifyListener: notifyListeners,
+			showDebugLogs: showDebugLogs,
+			optimisticTransitions: optimisticTransitions,
+			stateValidationLogic: stateValidationLogic
+		);
 
 		// Create state transitions
 		HashSet<StateTransition> _stateTransitions = HashSet();
@@ -103,6 +123,18 @@ class StateManager {
 				position: i,
 				manager: bsm
 			);
+			BooleanStateValue sv = bsm._managedValues[managedValues[i]]!._stateValue;
+			if (
+				sv.stateValidationLogic == StateValidationLogic.canBeX
+				|| (
+					sv.stateValidationLogic == null
+					&& bsm._stateValidationLogic == StateValidationLogic.canBeX
+				)
+			) {
+				bsm._canBeXStates.add(bsm._managedValues[managedValues[i]]!);
+			} else {
+				bsm._canChangeToXStates.add(bsm._managedValues[managedValues[i]]!);
+			}
 		}
 		_StateGraph? stateGraph = _StateGraph.create(
 			manager: bsm,

@@ -63,33 +63,33 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 			notifyListeners: notifyListeners,
 			managedValues: [
 				shouldHideBottomSheet = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) => manager.getFromState(currentState, isBottomSheetVisible)!,
+					validateFalse: (currentState, nextState, manager) => true,
+					validateTrue: (currentState, nextState, manager) => manager.getFromState(currentState, isBottomSheetVisible)!,
 					value: false
 				),
 				isBottomSheetVisible = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) {
+					validateFalse: (currentState, nextState, manager) => true,
+					validateTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(currentState, searching)!
 							&& !manager.getFromState(nextState, searching)!;
 					},
 					value: false
 				),
 				shouldDisplaySearchBar = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) => true,
+					validateFalse: (currentState, nextState, manager) => true,
+					validateTrue: (currentState, nextState, manager) => true,
 					value: false
 				),
 				endFound = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) {
+					validateFalse: (currentState, nextState, manager) => true,
+					validateTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(nextState, searching)!;
 					},
 					value: false
 				),
 				lazyLoading = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) {
+					validateFalse: (currentState, nextState, manager) => true,
+					validateTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(currentState, endFound)!
 							&& !manager.getFromState(nextState, searching)!
 							&& !manager.getFromState(currentState, lazyLoading)!;
@@ -97,8 +97,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					value: false
 				),
 				searching = FSM.BooleanStateValue(
-					canChangeToFalse: (currentState, nextState, manager) => true,
-					canChangeToTrue: (currentState, nextState, manager) {
+					validateFalse: (currentState, nextState, manager) => true,
+					validateTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(nextState, lazyLoading)!
 							&& manager.getFromState(currentState, shouldDisplaySearchBar)!
 							&& manager.getFromState(nextState, shouldDisplaySearchBar)!;

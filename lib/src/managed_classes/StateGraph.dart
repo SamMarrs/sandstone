@@ -74,16 +74,22 @@ class _StateGraph {
 						);
 					}
 					bool isValid(StateTuple nextState) {
-						return nextState._valueReferences.every(
+						bool _isValid = nextState._valueReferences.every(
 							(managedValue) {
 								bool newValue = nextState._values[managedValue._position];
 								bool oldValue = state._values[managedValue._position];
-								if (newValue == oldValue) {
+								if (
+									!manager._canChangeToXStates.contains(managedValue._stateValue)
+									|| newValue == oldValue
+								) {
 									return true;
 								} else {
 									return managedValue._canChange(state, nextState);
 								}
 							}
+						);
+						return _isValid && manager._canBeXStates.every(
+							(stateValue) => stateValue._isValid(state, nextState)
 						);
 					}
 					int findDifference(StateTuple a, StateTuple b) {
@@ -160,13 +166,18 @@ class _StateGraph {
 							bool newValue = element.value;
 							assert(managedValues[key] != null);
 							ManagedValue managedValue = managedValues[key]!;
-							bool currentValue = state._values[managedValue._position];
-							if (currentValue == newValue) {
+							if (
+								!manager._canChangeToXStates.contains(managedValue._stateValue)
+								|| state._values[managedValue._position] == newValue // current value == new value
+							) {
 								return true;
 							} else {
 								return managedValue._canChange(state, nextState);
 							}
 						}
+					);
+					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
+						(stateValue) => stateValue._isValid(state, nextState)
 					);
 					if (transitionIsValid) {
 						usedTransitions.add(transition);
