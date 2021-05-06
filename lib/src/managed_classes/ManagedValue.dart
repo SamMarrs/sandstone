@@ -11,6 +11,8 @@ class ManagedValue {
 	final StateManager _manager;
 	final BooleanStateValue _stateValue;
 
+	bool get isMirrored => _stateValue is MirroredStateValue;
+
 	ManagedValue._({
 		required BooleanStateValue managedValue,
 		required int position,

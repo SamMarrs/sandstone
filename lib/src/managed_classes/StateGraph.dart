@@ -66,6 +66,27 @@ class _StateGraph {
 							updates[managedValues[key]!._position] = value;
 						}
 					);
+
+					// A MirroredTransition can make changes to a mirrored state, but a regular transition may not.
+					// The changes specified by a MirroredTransition should be the only MirroredStateValue changes.
+					bool noMirroredChanges(StateTuple nextState) {
+						return !manager._mirroredStates.any(
+							(managedValue) {
+								bool oldValue = state._values[managedValue._position];
+								bool newValue = nextState._values[managedValue._position];
+								if (
+									transition is MirroredTransition
+									&& transition.stateChanges.containsKey(managedValue._stateValue)
+									&& transition.stateChanges[managedValue._stateValue] == newValue
+								) {
+									return false;
+								} else {
+									return oldValue != newValue;
+								}
+							}
+						);
+					}
+
 					bool hasNeededChanges(StateTuple nextState) {
 						return updates.entries.every(
 							(entry) {
@@ -79,7 +100,7 @@ class _StateGraph {
 								bool newValue = nextState._values[managedValue._position];
 								bool oldValue = state._values[managedValue._position];
 								if (
-									!manager._canChangeToXStates.contains(managedValue._stateValue)
+									managedValue._stateValue.stateValidationLogic != StateValidationLogic.canChangeToX
 									|| newValue == oldValue
 								) {
 									return true;
@@ -111,6 +132,7 @@ class _StateGraph {
 						StateTuple? nextState = StateTuple._fromHash(managedValues, manager, i);
 						if (
 							nextState != null
+							&& noMirroredChanges(nextState)
 							&& hasNeededChanges(nextState)
 							&& isValid(nextState)
 						) {
@@ -167,7 +189,7 @@ class _StateGraph {
 							assert(managedValues[key] != null);
 							ManagedValue managedValue = managedValues[key]!;
 							if (
-								!manager._canChangeToXStates.contains(managedValue._stateValue)
+								managedValue._stateValue.stateValidationLogic != StateValidationLogic.canChangeToX
 								|| state._values[managedValue._position] == newValue // current value == new value
 							) {
 								return true;

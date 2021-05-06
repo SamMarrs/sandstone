@@ -4,6 +4,7 @@ import 'dart:developer' as Developer;
 import 'dart:math' as Math;
 
 import 'package:flutter/widgets.dart';
+import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
 
 import 'utilities/Utils.dart';
 
@@ -45,12 +46,13 @@ class StateManager {
 
 	late final _StateGraph _stateGraph;
 
-	late final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions;
+	final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions = LinkedHashMap();
 
-	late final HashSet<StateTransition> _stateTransitions;
+	final HashSet<StateTransition> _stateTransitions = HashSet();
+	final HashSet<MirroredTransition> _mirroredTransitions = HashSet();
 
+	final HashSet<ManagedValue> _mirroredStates = HashSet();
 	final HashSet<ManagedValue> _canBeXStates = HashSet();
-	final HashSet<ManagedValue> _canChangeToXStates = HashSet();
 	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues = LinkedHashMap();
 	ManagedValue? getManagedValue(BooleanStateValue booleanStateValue) => _managedValues[booleanStateValue];
 
@@ -87,6 +89,7 @@ class StateManager {
 		required List<BooleanStateValue> managedValues,
 		required List<StateTransition> stateTransitions,
 		List<StateAction>? stateActions,
+		List<FSMMirror>? mirroredFSMs,
 		bool showDebugLogs = false,
 		bool optimisticTransitions = false,
 		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX
@@ -98,89 +101,176 @@ class StateManager {
 			stateValidationLogic: stateValidationLogic
 		);
 
-		// Create state transitions
-		HashSet<StateTransition> _stateTransitions = HashSet();
-		bool stateTransitionError = false;
-		stateTransitions.forEach(
-			(transition) {
-				if (
-					FSMTests.noDuplicateTransitions(_stateTransitions, transition)
-					&& FSMTests.checkIfAllStateValuesRegistered(transition, managedValues)
-				) {
-					FSMTests.stateTransitionValuesNotEmpty(transition);
-					_stateTransitions.add(transition);
-				} else {
-					stateTransitionError = true;
-				}
-			}
-		);
-		if (stateTransitionError) return null;
-		bsm._stateTransitions = _stateTransitions;
-
-		for (int i = 0; i < managedValues.length; i++) {
-			bsm._managedValues[managedValues[i]] = ManagedValue._(
-				managedValue: managedValues[i],
-				position: i,
-				manager: bsm
-			);
-			BooleanStateValue sv = bsm._managedValues[managedValues[i]]!._stateValue;
-			if (
-				sv.stateValidationLogic == StateValidationLogic.canBeX
-				|| (
-					sv.stateValidationLogic == null
-					&& bsm._stateValidationLogic == StateValidationLogic.canBeX
-				)
-			) {
-				bsm._canBeXStates.add(bsm._managedValues[managedValues[i]]!);
-			} else {
-				bsm._canChangeToXStates.add(bsm._managedValues[managedValues[i]]!);
-			}
-		}
-		_StateGraph? stateGraph = _StateGraph.create(
-			manager: bsm,
-			stateTransitions: _stateTransitions,
-			unmanagedToManagedValues: bsm._managedValues
-		);
-		if (stateGraph == null) return null;
-		bsm._stateGraph = stateGraph;
-
-		// Create state actions.
-		LinkedHashMap<StateTuple, List<_ManagedStateAction>> managedStateActions = LinkedHashMap()
-			..addEntries(bsm._stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
-		HashSet<StateAction> actionsThatMayRun = HashSet();
-		bool stateActionError = false;
-		if (stateActions != null) {
-			stateActions.forEach(
-				(action) {
+		// Returns true or false based on success.
+		bool initializeStateTransitions(
+			StateManager manager,
+			List<StateTransition> stateTransitions,
+			List<FSMMirror>? mirroredFSMs
+		) {
+			bool stateTransitionError = false;
+			stateTransitions.forEach(
+				(transition) {
 					if (
-						FSMTests.checkIfAllActionStateValuesRegistered(action, bsm._stateGraph._managedValues)
+						FSMTests.noDuplicateTransitions(manager._stateTransitions, transition)
+						&& FSMTests.checkIfAllStateValuesRegistered(transition, managedValues)
+						&& FSMTests.noMirroredStatesInTransition(transition)
 					) {
-						_ManagedStateAction? msa = _ManagedStateAction.create(
-							managedValues: bsm._stateGraph._managedValues,
-							stateAction: action
-						);
-						if (msa != null) {
-							bsm._stateGraph._validStates.forEach(
-								(state, _) {
-									if (msa.shouldRun(state)) {
-										actionsThatMayRun.add(action);
-										managedStateActions[state]!.add(msa);
-									}
-								}
-							);
-						}
+						FSMTests.stateTransitionValuesNotEmpty(transition);
+						manager._stateTransitions.add(transition);
 					} else {
-						stateActionError = true;
+						stateTransitionError = true;
 					}
 				}
 			);
-			FSMTests.checkIfAllActionsMayRun(
-				stateActions,
-				actionsThatMayRun
+
+			// TODO: Initialize mirrored transitions.
+			mirroredFSMs?.forEach(
+				(fsm) {
+					fsm.transitions.forEach(
+						(transition) {
+							if (
+								FSMTests.noDuplicateTransitions(manager._stateTransitions, transition)
+								// TODO: Some tests found in FSMMirror should probably be used here.
+								// && FSMTests.checkIfAllStateValuesRegistered(transition, managedValues)
+								// && FSMTests.noMirroredStatesInTransition(transition)
+							) {
+								FSMTests.stateTransitionValuesNotEmpty(transition);
+								manager._stateTransitions.add(transition);
+								manager._mirroredTransitions.add(transition);
+							} else {
+								stateTransitionError = true;
+							}
+						}
+					);
+				}
+			);
+
+			return stateTransitionError;
+		}
+		void initializeManagedValues(
+			StateManager manager,
+			List<BooleanStateValue> managedValues,
+			List<FSMMirror>? mirroredFSMs
+		) {
+			int i = 0;
+			for (i = 0; i < managedValues.length; i++) {
+				manager._managedValues[managedValues[i]] = ManagedValue._(
+					managedValue: managedValues[i],
+					position: i,
+					manager: manager
+				);
+				BooleanStateValue sv = manager._managedValues[managedValues[i]]!._stateValue;
+				if (
+					sv.stateValidationLogic == StateValidationLogic.canBeX
+					|| (
+						sv.stateValidationLogic == null
+						&& manager._stateValidationLogic == StateValidationLogic.canBeX
+					)
+				) {
+					manager._canBeXStates.add(manager._managedValues[managedValues[i]]!);
+				}
+			}
+			// TODO: Initialize mirrored states
+			mirroredFSMs?.forEach(
+				(fsm) {
+					for (int j = 0; j < fsm.states.length; j++) {
+						manager._managedValues[fsm.states[j]] = ManagedValue._(
+							managedValue: fsm.states[j],
+							position: i + j,
+							manager: manager
+						);
+						manager._mirroredStates.add(manager._managedValues[fsm.states[j]]!);
+						i++;
+					}
+				}
 			);
 		}
-		if (stateActionError) return null;
-		bsm._managedStateActions = managedStateActions;
+		bool initializeStateGraph(
+			StateManager manager,
+			HashSet<StateTransition> stateTransitions,
+			LinkedHashMap<BooleanStateValue, ManagedValue> managedValues
+		) {
+			_StateGraph? stateGraph = _StateGraph.create(
+				manager: manager,
+				stateTransitions: stateTransitions,
+				unmanagedToManagedValues: managedValues
+			);
+			if (stateGraph == null) {
+				return false;
+			}
+			manager._stateGraph = stateGraph;
+			return true;
+		}
+
+		bool initializeStateActions(
+			StateManager manager,
+			List<StateAction>? stateActions,
+			_StateGraph stateGraph
+		) {
+			manager._managedStateActions..addEntries(stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
+			HashSet<StateAction> actionsThatMayRun = HashSet();
+			bool stateActionError = false;
+			if (stateActions != null) {
+				stateActions.forEach(
+					(action) {
+						if (
+							FSMTests.checkIfAllActionStateValuesRegistered(action, stateGraph._managedValues)
+						) {
+							_ManagedStateAction? msa = _ManagedStateAction.create(
+								managedValues: stateGraph._managedValues,
+								stateAction: action
+							);
+							if (msa != null) {
+								stateGraph._validStates.forEach(
+									(state, _) {
+										if (msa.shouldRun(state)) {
+											actionsThatMayRun.add(action);
+											manager._managedStateActions[state]!.add(msa);
+										}
+									}
+								);
+							}
+						} else {
+							stateActionError = true;
+						}
+					}
+				);
+				FSMTests.checkIfAllActionsMayRun(
+					stateActions,
+					actionsThatMayRun
+				);
+			}
+
+			return stateActionError;
+		}
+
+		void initializeMirroredFSMCallbacks(
+			StateManager manager,
+			List<FSMMirror>? mirroredFSMs
+		) {
+			mirroredFSMs?.forEach(
+				(mirror) {
+					MirroredStateChangeCallback callback = (transition, {clearQueue = false, jumpQueue = true}) {
+						bool sameMirror = transition.mirror == mirror;
+						assert(sameMirror);
+						if (sameMirror) {
+							bsm._queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
+						}
+					};
+					mirror.stateUpdates(callback);
+				}
+			);
+		}
+
+		if (!initializeStateTransitions(bsm, stateTransitions, mirroredFSMs)) return null;
+
+		initializeManagedValues(bsm, managedValues, mirroredFSMs);
+
+		if (!initializeStateGraph(bsm, bsm._stateTransitions, bsm._managedValues)) return null;
+
+		if (!initializeStateActions(bsm, stateActions, bsm._stateGraph)) return null;
+
+		initializeMirroredFSMCallbacks(bsm, mirroredFSMs);
 		bsm._doActions();
 		return bsm;
 	}
@@ -221,7 +311,11 @@ class StateManager {
 			bool? jumpQueue
 		}
 	) {
-		_queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
+		bool notMirrored = !_mirroredTransitions.contains(transition);
+		assert(notMirrored, 'Mirrored transitions can only be used through the callback provided by FSMMirror');
+		if (notMirrored) {
+			_queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
+		}
 	}
 
 	void _queueTransition(
