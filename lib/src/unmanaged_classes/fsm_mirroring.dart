@@ -5,7 +5,7 @@ import 'dart:collection';
 import 'BooleanStateValue.dart';
 import 'StateTransition.dart';
 
-typedef MirroredStateChangeCallback = void Function(MirroredTransition changes, {bool clearQueue, bool jumpQueue});
+typedef MirroredStateChangeCallback = void Function(MirroredTransition changes);
 class FSMMirror{
 
 	final List<MirroredStateValue> states;

@@ -123,7 +123,7 @@ class StateManager {
 				}
 			);
 
-			// TODO: Initialize mirrored transitions.
+			// Initialize mirrored transitions.
 			mirroredFSMs?.forEach(
 				(fsm) {
 					fsm.transitions.forEach(
@@ -170,11 +170,11 @@ class StateManager {
 					manager._canBeXStates.add(manager._managedValues[managedValues[i]]!);
 				}
 			}
-			// TODO: Initialize mirrored states
+			// Initialize mirrored states
 			mirroredFSMs?.forEach(
 				(fsm) {
 					int j = 0;
-					for (j; j < fsm.states.length; j++) {
+					for (; j < fsm.states.length; j++) {
 						manager._managedValues[fsm.states[j]] = ManagedValue._(
 							managedValue: fsm.states[j],
 							position: i + j,
@@ -208,7 +208,7 @@ class StateManager {
 			List<StateAction>? stateActions,
 			_StateGraph stateGraph
 		) {
-			// FIXME: This creates a sparse map with many empty items. Change to only store keys that are attached to actions.
+			// FIXME: This creates a map with many empty items. Change to only store keys that are attached to actions.
 			manager._managedStateActions..addEntries(stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
 			HashSet<StateAction> actionsThatMayRun = HashSet();
 			bool stateActionError = false;
@@ -252,11 +252,11 @@ class StateManager {
 		) {
 			mirroredFSMs?.forEach(
 				(mirror) {
-					MirroredStateChangeCallback callback = (transition, {clearQueue = false, jumpQueue = true}) {
+					MirroredStateChangeCallback callback = (transition) {
 						bool sameMirror = transition.mirror == mirror;
 						assert(sameMirror);
 						if (sameMirror) {
-							bsm._queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
+							bsm._queueMirroredTransition(transition);
 						}
 					};
 					mirror.stateUpdates(callback);
@@ -292,6 +292,7 @@ class StateManager {
 		);
 	}
 
+	DoubleLinkedQueue<MirroredTransition> _mirroredTransitionBuffer = DoubleLinkedQueue();
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
 	bool _performingTransition = false;
 	/// Queues a [StateTransition] to run.
@@ -320,6 +321,31 @@ class StateManager {
 		}
 	}
 
+	void _queueMirroredTransition(MirroredTransition transition) {
+		assert(_stateTransitions.contains(transition), 'Unknown mirrored transition: "${transition.name}".');
+		if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
+			assert(!(transition is MirroredTransition));
+			if (_showDebugLogs) {
+				Developer.log('Ignoring mirrored transition "${transition.name}" because it does not transition to a valid state.');
+			}
+			return;
+		}
+		if (
+			transition.ignoreDuplicates
+			&& _mirroredTransitionBuffer.isNotEmpty
+			&& _mirroredTransitionBuffer.last == transition
+		) {
+			if (_showDebugLogs) {
+				Developer.log('Ignoring mirrored transition "${transition.name}" because ignoreDuplicate is set.');
+			}
+			return;
+		}
+		_mirroredTransitionBuffer.addLast(transition);
+		if (!_performingTransition) {
+			Future(_processTransition);
+		}
+	}
+
 	void _queueTransition(
 		StateTransition? transition,
 		{
@@ -331,7 +357,7 @@ class StateManager {
 			_transitionBuffer.clear();
 		}
 		if (transition == null) {
-			if (_transitionBuffer.isNotEmpty && !_performingTransition) {
+			if ((_transitionBuffer.isNotEmpty || _mirroredTransitionBuffer.isNotEmpty) && !_performingTransition) {
 				Future(_processTransition);
 			}
 		} else {
@@ -369,11 +395,19 @@ class StateManager {
 	void _processTransition() {
 		// If a separate isolate queues a transition, this check could change between _queueTransition and here.
 		// Need to check again.
-		if (_performingTransition || _transitionBuffer.isEmpty) return;
+		if (_performingTransition || (_transitionBuffer.isEmpty && _mirroredTransitionBuffer.isEmpty)) return;
 		_performingTransition = true;
-		StateTransition transition = _transitionBuffer.removeFirst();
-		if (_showDebugLogs) {
-			Developer.log('Processing transition "${transition.name}".');
+		late StateTransition transition;
+		if (_mirroredTransitionBuffer.isNotEmpty) {
+			transition = _mirroredTransitionBuffer.removeFirst();
+			if (_showDebugLogs) {
+				Developer.log('Processing mirrored transition "${transition.name}".');
+			}
+		} else {
+			transition = _transitionBuffer.removeFirst();
+			if (_showDebugLogs) {
+				Developer.log('Processing transition "${transition.name}".');
+			}
 		}
 
 		StateTuple currentState = _stateGraph._currentState;

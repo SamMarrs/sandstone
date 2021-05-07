@@ -100,13 +100,18 @@ class _StateGraph {
 								bool newValue = nextState._values[managedValue._position];
 								bool oldValue = state._values[managedValue._position];
 								if (
-									managedValue._stateValue.stateValidationLogic != StateValidationLogic.canChangeToX
-									|| newValue == oldValue
+									(
+										managedValue._stateValue.stateValidationLogic == StateValidationLogic.canChangeToX
+										|| (
+											managedValue._stateValue.stateValidationLogic == null
+											&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+										)
+									)
+									&& newValue != oldValue
 								) {
-									return true;
-								} else {
 									return managedValue._canChange(state, nextState);
 								}
+								return true;
 							}
 						);
 						return _isValid && manager._canBeXStates.every(
@@ -189,13 +194,18 @@ class _StateGraph {
 							assert(managedValues[key] != null);
 							ManagedValue managedValue = managedValues[key]!;
 							if (
-								managedValue._stateValue.stateValidationLogic != StateValidationLogic.canChangeToX
-								|| state._values[managedValue._position] == newValue // current value == new value
+								(
+									managedValue._stateValue.stateValidationLogic == StateValidationLogic.canChangeToX
+									|| (
+										managedValue._stateValue.stateValidationLogic == null
+										&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+									)
+								)
+								&& newValue != state._values[managedValue._position]
 							) {
-								return true;
-							} else {
 								return managedValue._canChange(state, nextState);
 							}
+							return true;
 						}
 					);
 					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
