@@ -145,7 +145,7 @@ class StateManager {
 				}
 			);
 
-			return stateTransitionError;
+			return !stateTransitionError;
 		}
 		void initializeManagedValues(
 			StateManager manager,
@@ -173,15 +173,16 @@ class StateManager {
 			// TODO: Initialize mirrored states
 			mirroredFSMs?.forEach(
 				(fsm) {
-					for (int j = 0; j < fsm.states.length; j++) {
+					int j = 0;
+					for (j; j < fsm.states.length; j++) {
 						manager._managedValues[fsm.states[j]] = ManagedValue._(
 							managedValue: fsm.states[j],
 							position: i + j,
 							manager: manager
 						);
 						manager._mirroredStates.add(manager._managedValues[fsm.states[j]]!);
-						i++;
 					}
+					i += j;
 				}
 			);
 		}
@@ -207,6 +208,7 @@ class StateManager {
 			List<StateAction>? stateActions,
 			_StateGraph stateGraph
 		) {
+			// FIXME: This creates a sparse map with many empty items. Change to only store keys that are attached to actions.
 			manager._managedStateActions..addEntries(stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
 			HashSet<StateAction> actionsThatMayRun = HashSet();
 			bool stateActionError = false;
@@ -241,7 +243,7 @@ class StateManager {
 				);
 			}
 
-			return stateActionError;
+			return !stateActionError;
 		}
 
 		void initializeMirroredFSMCallbacks(

@@ -1,5 +1,7 @@
 
 
+import 'dart:collection';
+
 import 'BooleanStateValue.dart';
 import 'StateTransition.dart';
 
@@ -39,21 +41,34 @@ class FSMMirror{
 		assert(
 			transitions.every(
 				(transition) => transition.stateChanges.keys.every(
-					(stateValue) => states.contains(stateValue)
+					(stateValue) {
+						if (stateValue is MirroredStateValue) {
+							return states.contains(stateValue);
+						}
+						return true;
+					}
 				)
 			),
-			'Only MirroredStateValues initialized with this instance of FSMMirror may be used.'
+			'MirroredStateValues cannot be used in multiple instances of FSMMirror'
 		);
 
 		assert(
-			false, // TODO: Implement test
-			'Not every state is affected by a transition'
+			(){
+				HashSet<BooleanStateValue> affectedStates = HashSet();
+				transitions.forEach(
+					(transition) {
+						affectedStates.addAll(transition.stateChanges.keys.where((state) => state is MirroredStateValue));
+					}
+				);
+				return states.every((state) => affectedStates.contains(state));
+			}(),
+			'Not every mirrored state is affected by a transition'
 		);
 	}
 }
 
 class MirroredStateValue extends BooleanStateValue {
-	late final FSMMirror? _mirror;
+	FSMMirror? _mirror;
 	FSMMirror? get mirror => _mirror;
 
   	MirroredStateValue({
@@ -66,12 +81,12 @@ class MirroredStateValue extends BooleanStateValue {
 }
 
 class MirroredTransition extends StateTransition {
-	late final FSMMirror? _mirror;
+	FSMMirror? _mirror;
 	FSMMirror? get mirror => _mirror;
 
 	MirroredTransition({
 		String name = '',
-		required Map<MirroredStateValue, bool> stateChanges,
+		required Map<BooleanStateValue, bool> stateChanges,
 		bool ignoreDuplicates = true
 	}): super(
 		name: name,
