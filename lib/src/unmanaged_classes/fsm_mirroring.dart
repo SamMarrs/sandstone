@@ -12,34 +12,34 @@ class FSMMirror{
 	final List<MirroredTransition> transitions;
 	final void Function(MirroredStateChangeCallback stateChangeCallback) stateUpdates;
 
+	late final bool initializedCorrectly;
+
 	FSMMirror({
 		required this.states,
 		required this.transitions,
 		required this.stateUpdates,
 	}) {
+		bool initializedCorrectly = true;
 		// TODO: How can failing these tests be used to prevent initialization of the state manager.
-		assert(
-			states.every(
+
+		bool sameStateMirror() {
+			bool valid = states.every(
 				(state) => state._mirror == null
-			),
-			'Cannot use MirroredStateValues in multiple instances of FSMMirror'
-		);
-		states.forEach(
-			(state) => state._mirror = this
-		);
+			);
+			assert(valid, 'Cannot use MirroredStateValues in multiple instances of FSMMirror');
+			return valid;
+		}
 
-		assert(
-			transitions.every(
+		bool sameTransitionMirror() {
+			bool valid = transitions.every(
 				(transition) => transition._mirror == null
-			),
-			'Cannot use MirroredTransitions in multiple instances of FSMMirror'
-		);
-		transitions.forEach(
-			(transition) => transition._mirror = this
-		);
+			);
+			assert(valid, 'Cannot use MirroredTransitions in multiple instances of FSMMirror');
+			return valid;
+		}
 
-		assert(
-			transitions.every(
+		bool transitionChangesFromThisMirror() {
+			bool valid = transitions.every(
 				(transition) => transition.stateChanges.keys.every(
 					(stateValue) {
 						if (stateValue is MirroredStateValue) {
@@ -48,22 +48,37 @@ class FSMMirror{
 						return true;
 					}
 				)
-			),
-			'MirroredStateValues cannot be used in multiple instances of FSMMirror'
+			);
+			assert(valid, 'Found MirroredStateValue from different FSMMirror in a MirroredTransition.');
+			return valid;
+		}
+
+		bool noUnChangedStateValue() {
+			HashSet<BooleanStateValue> affectedStates = HashSet();
+			transitions.forEach(
+				(transition) {
+					affectedStates.addAll(transition.stateChanges.keys.where((state) => state is MirroredStateValue));
+				}
+			);
+			bool valid = states.every((state) => affectedStates.contains(state));
+			assert(valid, 'Not every mirrored state is affected by a transition.');
+			return valid;
+		}
+
+		initializedCorrectly = initializedCorrectly && sameStateMirror();
+		states.forEach(
+			(state) => state._mirror = this
 		);
 
-		assert(
-			(){
-				HashSet<BooleanStateValue> affectedStates = HashSet();
-				transitions.forEach(
-					(transition) {
-						affectedStates.addAll(transition.stateChanges.keys.where((state) => state is MirroredStateValue));
-					}
-				);
-				return states.every((state) => affectedStates.contains(state));
-			}(),
-			'Not every mirrored state is affected by a transition'
+		initializedCorrectly = initializedCorrectly && sameTransitionMirror();
+		transitions.forEach(
+			(transition) => transition._mirror = this
 		);
+
+		initializedCorrectly = initializedCorrectly && transitionChangesFromThisMirror();
+		initializedCorrectly = initializedCorrectly && noUnChangedStateValue();
+
+		this.initializedCorrectly = initializedCorrectly;
 	}
 }
 

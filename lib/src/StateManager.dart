@@ -127,9 +127,6 @@ class StateManager {
 						(transition) {
 							if (
 								FSMTests.noDuplicateTransitions(manager._stateTransitions, transition)
-								// TODO: Some tests found in FSMMirror should probably be used here.
-								// && FSMTests.checkIfAllStateValuesRegistered(transition, managedValues)
-								// && FSMTests.noMirroredStatesInTransition(transition)
 							) {
 								FSMTests.stateTransitionValuesNotEmpty(transition);
 								manager._stateTransitions.add(transition);
@@ -260,6 +257,8 @@ class StateManager {
 				}
 			);
 		}
+
+		if (mirroredFSMs == null ? false : !mirroredFSMs.every((mirror) => mirror.initializedCorrectly)) return null;
 
 		if (!initializeStateTransitions(bsm, stateTransitions, mirroredFSMs)) return null;
 
