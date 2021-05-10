@@ -23,7 +23,8 @@ class BooleanStateValue {
 	/// more than the changes defined within a [StateTransition]. In this case, it may be useful to look at [nextState].
 	final bool Function(StateTuple previous, StateTuple nextState, StateManager manager) validateTrue;
 
-	/// Defines when this variable can change from `true` to `false`.
+	/// Used to define when a state is valid given that this variable is false after the transition.
+	/// The [stateValidationLogic] found here, combined with the option found in [StateManager] controls how this function is used.
 	///
 	/// To get the value correlated to this [BooleanStateValue] within the provided [StateTuple]s, use the provided [StateManager]
 	/// ```dart
@@ -43,6 +44,8 @@ class BooleanStateValue {
 	/// Defaults to what is set in [StateManager.create].
 	///
 	/// Overrides the [StateManager] value if set.
+	///
+	/// See [StateValidationLogic] for more details.
 	final StateValidationLogic? stateValidationLogic;
 
 	BooleanStateValue({
