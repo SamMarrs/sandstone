@@ -23,11 +23,6 @@ part 'managed_classes/StateGraph.dart';
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
 
-// TODO: Add method of integrating external inputs that will cause a state change regardless of the current state.
-// This includes things like the keyboard. A value listener emits when the keyboard is up or down. The change cannot be prevented by any
-// conditions within a BooleanStateValue. The FSM state just needs to update immediately after the change.
-// One partial option is to allow transitions to jump the queue without clearing it.
-
 /// This represents various ways states are determined to be valid when the state manager initializes, and constructs the FSM.
 ///
 /// When [canBeX] is used, every [BooleanStateValue] marked as such must have their validate functions return true for a state to be valid.

@@ -17,7 +17,7 @@ class FSMMirror{
 		required this.transitions,
 		required this.stateUpdates,
 	}) {
-		// TODO: How can failing these tests be used to prevent intialiation of the state manager.
+		// TODO: How can failing these tests be used to prevent initialization of the state manager.
 		assert(
 			states.every(
 				(state) => state._mirror == null
