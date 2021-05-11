@@ -20,7 +20,6 @@ class FSMMirror{
 		required this.stateUpdates,
 	}) {
 		bool initializedCorrectly = true;
-		// TODO: How can failing these tests be used to prevent initialization of the state manager.
 
 		bool sameStateMirror() {
 			bool valid = states.every(
