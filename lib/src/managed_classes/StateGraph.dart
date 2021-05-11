@@ -66,6 +66,27 @@ class _StateGraph {
 							updates[managedValues[key]!._position] = value;
 						}
 					);
+
+					// A MirroredTransition can make changes to a mirrored state, but a regular transition may not.
+					// The changes specified by a MirroredTransition should be the only MirroredStateValue changes.
+					bool noMirroredChanges(StateTuple nextState) {
+						return !manager._mirroredStates.any(
+							(managedValue) {
+								bool oldValue = state._values[managedValue._position];
+								bool newValue = nextState._values[managedValue._position];
+								if (
+									transition is MirroredTransition
+									&& transition.stateChanges.containsKey(managedValue._stateValue)
+									&& transition.stateChanges[managedValue._stateValue] == newValue
+								) {
+									return false;
+								} else {
+									return oldValue != newValue;
+								}
+							}
+						);
+					}
+
 					bool hasNeededChanges(StateTuple nextState) {
 						return updates.entries.every(
 							(entry) {
@@ -74,16 +95,27 @@ class _StateGraph {
 						);
 					}
 					bool isValid(StateTuple nextState) {
-						return nextState._valueReferences.every(
+						bool _isValid = nextState._valueReferences.every(
 							(managedValue) {
 								bool newValue = nextState._values[managedValue._position];
 								bool oldValue = state._values[managedValue._position];
-								if (newValue == oldValue) {
-									return true;
-								} else {
+								if (
+									(
+										managedValue._stateValue.stateValidationLogic == StateValidationLogic.canChangeToX
+										|| (
+											managedValue._stateValue.stateValidationLogic == null
+											&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+										)
+									)
+									&& newValue != oldValue
+								) {
 									return managedValue._canChange(state, nextState);
 								}
+								return true;
 							}
+						);
+						return _isValid && manager._canBeXStates.every(
+							(stateValue) => stateValue._isValid(state, nextState)
 						);
 					}
 					int findDifference(StateTuple a, StateTuple b) {
@@ -105,6 +137,7 @@ class _StateGraph {
 						StateTuple? nextState = StateTuple._fromHash(managedValues, manager, i);
 						if (
 							nextState != null
+							&& noMirroredChanges(nextState)
 							&& hasNeededChanges(nextState)
 							&& isValid(nextState)
 						) {
@@ -160,13 +193,23 @@ class _StateGraph {
 							bool newValue = element.value;
 							assert(managedValues[key] != null);
 							ManagedValue managedValue = managedValues[key]!;
-							bool currentValue = state._values[managedValue._position];
-							if (currentValue == newValue) {
-								return true;
-							} else {
+							if (
+								(
+									managedValue._stateValue.stateValidationLogic == StateValidationLogic.canChangeToX
+									|| (
+										managedValue._stateValue.stateValidationLogic == null
+										&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+									)
+								)
+								&& newValue != state._values[managedValue._position]
+							) {
 								return managedValue._canChange(state, nextState);
 							}
+							return true;
 						}
+					);
+					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
+						(stateValue) => stateValue._isValid(state, nextState)
 					);
 					if (transitionIsValid) {
 						usedTransitions.add(transition);

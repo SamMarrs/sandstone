@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:tuple/tuple.dart';
 
 import 'list_state.dart';
+// import 'list_state.canBeX.dart';
+// import 'list_state.canBeX.optimistic.dart';
 // import 'list_state.optimistic.dart';
 
 class SearchableList<ListItemType> extends StatelessWidget {
@@ -283,7 +285,7 @@ class SearchableListWidgetState<ListItemType> extends State<_SearchableList> {
             ),
             body: _itemList,
             floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-            floatingActionButton: !sm.shouldDisplaySearchBar && (!sm.isBottomSheetMaximized || !sm.isBottomSheetVisible)  ? widget.floatingActionButton : null
+            floatingActionButton: !sm.shouldDisplaySearchBar && (sm.isBottomSheetMinimized || sm.isBottomSheetClosed)  ? widget.floatingActionButton : null
         );
     }
 }

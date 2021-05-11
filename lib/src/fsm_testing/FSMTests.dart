@@ -7,8 +7,19 @@ import '../StateManager.dart';
 import '../unmanaged_classes/BooleanStateValue.dart';
 import '../unmanaged_classes/StateAction.dart';
 import '../unmanaged_classes/StateTransition.dart';
+import '../unmanaged_classes/fsm_mirroring.dart';
 
 class FSMTests {
+	static bool noMirroredStatesInTransition(
+		StateTransition transition
+	) {
+		bool foundMirroredState = transition.stateChanges.entries.any(
+			(entry) => entry.key is MirroredStateValue
+		);
+		assert(!foundMirroredState, 'Transition "${transition.name}" tries to change to mirrored states that are not controlled by this FSM.');
+		return !foundMirroredState;
+	}
+
 	static bool noDuplicateTransitions(
 		HashSet<StateTransition> transitions,
 		StateTransition newTransition

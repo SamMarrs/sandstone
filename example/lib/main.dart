@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:tuple/tuple.dart';
 
 import 'List/list_state.dart';
+// import 'List/list_state.canBeX.dart';
+// import 'List/list_state.canBeX.optimistic.dart';
 // import 'List/list_state.optimistic.dart';
 import 'List/SearchableList.widget.dart';
 
@@ -155,7 +157,7 @@ class _SearchableListTestState extends State<SearchableListTest> {
 		SearchableListStateModel sm = context.read<SearchableListStateModel<TestItem>>();
 		bsi.changeUnit(item: item, index: index);
 		// queueing showBottomSheet will re-run the open animation for the bottom sheet.
-		if (!sm.isBottomSheetVisible) {
+		if (sm.isBottomSheetClosed) {
 			sm.stateManager.queueTransition(sm.showBottomSheet);
 		}
 	}
