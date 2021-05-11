@@ -6,6 +6,7 @@ import 'dart:math' as Math;
 import 'package:flutter/widgets.dart';
 import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
 
+import 'configurations/StateValidationLogic.dart';
 import 'utilities/Utils.dart';
 
 import 'unmanaged_classes/StateTransition.dart';
@@ -22,20 +23,6 @@ part 'managed_classes/StateGraph.dart';
 
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
-
-/// This represents various ways states are determined to be valid when the state manager initializes, and constructs the FSM.
-///
-/// When [canBeX] is used, every [BooleanStateValue] marked as such must have their validate functions return true for a state to be valid.
-///
-/// When [canChangeToX] is used, only the [BooleanStateValues] that have changed values will be used to evaluate the validity of a state after a transition.
-///
-/// These two options can be intermixed.
-enum StateValidationLogic {
-	/// When used, every [BooleanStateValue] marked as such must have their validate functions return true for a state to be valid.
-	canBeX,
-	/// When used, only the [BooleanStateValues] that have changed values will be used to evaluate the validity of a state after a transition.
-	canChangeToX
-}
 
 /// Creates and manages a finite state machine.
 class StateManager {
