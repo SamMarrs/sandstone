@@ -346,6 +346,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							stateChanges: {
 								keyboardVisible: true,
 								shouldHideBottomSheet: true
+								shouldShowBottomSheet: false
 							}
 						),
 						keyboardClosed = FSM.MirroredTransition(

@@ -25,13 +25,13 @@ class _StateGraph {
 		required LinkedHashMap<BooleanStateValue, ManagedValue> unmanagedToManagedValues
 	}) {
 
-		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> validStates = _StateGraph._buildAdjacencyList(
+		HashMap<StateTuple, HashMap<StateTransition, StateTuple>>? validStates = _StateGraph._buildAdjacencyList(
 			managedValues: unmanagedToManagedValues,
 			manager: manager,
 			stateTransitions: stateTransitions
 		);
 		StateTuple currentState = StateTuple._fromMap(unmanagedToManagedValues, manager);
-		return _StateGraph._(
+		return validStates == null ? null : _StateGraph._(
 			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
 			currentState: currentState,
@@ -39,7 +39,7 @@ class _StateGraph {
 		);
 	}
 
-	static HashMap<StateTuple, HashMap<StateTransition, StateTuple>> _buildAdjacencyList({
+	static HashMap<StateTuple, HashMap<StateTransition, StateTuple>>? _buildAdjacencyList({
 		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
 		required StateManager manager,
 		required HashSet<StateTransition> stateTransitions,
@@ -47,6 +47,7 @@ class _StateGraph {
 		StateTuple initialState = StateTuple._fromMap(managedValues, manager);
 		HashMap<StateTuple, HashMap<StateTransition, StateTuple>> adjacencyList = HashMap();
 		HashSet<StateTransition> usedTransitions = HashSet();
+		bool failedMirroredTransition = false;
 
 		void optimisticFindNextState(StateTuple state) {
 			if (adjacencyList.containsKey(state)) {
@@ -159,6 +160,11 @@ class _StateGraph {
 						FSMTests.noStateTransitionsWithMultipleResults(transition, state, minDiffStates);
 					}
 
+					if (minDiffState == null && transition is MirroredTransition) {
+						FSMTests.noFailedMirroredTransitions(transition, state);
+						failedMirroredTransition = true;
+					}
+
 					if (minDiffState != null) {
 						usedTransitions.add(transition);
 						adjacencyList[state]![transition] = minDiffState;
@@ -211,6 +217,12 @@ class _StateGraph {
 					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
 						(stateValue) => stateValue._isValid(state, nextState)
 					);
+
+					if (!transitionIsValid && transition is MirroredTransition) {
+						FSMTests.noFailedMirroredTransitions(transition, state);
+						failedMirroredTransition = true;
+					}
+
 					if (transitionIsValid) {
 						usedTransitions.add(transition);
 						adjacencyList[state]![transition] = nextState;
@@ -228,7 +240,7 @@ class _StateGraph {
 			conservativeFindNextState(initialState);
 		}
 		FSMTests.noUnusedTransitions(stateTransitions, usedTransitions);
-		return adjacencyList;
+		return failedMirroredTransition ? null : adjacencyList;
 	}
 
 	void changeState(StateTuple newState) {

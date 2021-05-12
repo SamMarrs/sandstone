@@ -84,10 +84,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 				shouldHideBottomSheet = FSM.BooleanStateValue(
 					validateFalse: (currentState, nextState, manager) => true,
 					validateTrue: (currentState, nextState, manager) {
-						// TODO: Should mirrored states be allowed here?
-						// Allowing them here provides a means for which mirrored transitions may be ignored, even though the action they represent did occur.
-						// return !manager.getFromState(currentState, bottomSheetClosed)!
-						// 	&& !manager.getFromState(nextState, shouldShowBottomSheet)!;
 						return !manager.getFromState(nextState, shouldShowBottomSheet)!;
 					},
 					value: false
@@ -384,7 +380,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							name: 'keyboardOpened',
 							stateChanges: {
 								keyboardVisible: true,
-								shouldHideBottomSheet: true
+								shouldHideBottomSheet: true,
+								shouldShowBottomSheet: false,
 							}
 						),
 						keyboardClosed = FSM.MirroredTransition(

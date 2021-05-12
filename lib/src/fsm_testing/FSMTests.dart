@@ -116,4 +116,10 @@ class FSMTests {
 		assert(false, 'Found ${minDiffStates.length} equally possible states to transition to for state ${previousState.hashCode.toString()} and transition "${transition.name}"');
 	}
 
+	static void noFailedMirroredTransitions(
+		MirroredTransition transition,
+		StateTuple state
+	) {
+		assert(false, 'A mirrored transition by the name "${transition.name}" failed for state: [${state.toString()}].');
+	}
 }
