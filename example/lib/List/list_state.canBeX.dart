@@ -331,13 +331,13 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 								bsState = _cbssm.value;
 								switch (bsState) {
 									case BOTTOM_SHEET_STATES.CLOSED:
-										stateChangeCallback(closedBottomSheet)
+										stateChangeCallback(closedBottomSheet);
 										break;
 									case BOTTOM_SHEET_STATES.MAXIMIZED:
-										stateChangeCallback(openBottomSheetMaximized)
+										stateChangeCallback(openBottomSheetMaximized);
 										break;
 									case BOTTOM_SHEET_STATES.MINIMIZED:
-										stateChangeCallback(openBottomSheetMinimized)
+										stateChangeCallback(openBottomSheetMinimized);
 										break;
 								}
 							}
@@ -368,10 +368,10 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 						void _kvcEvent(bool visible) {
 							if (visible) {
 								print('hello');
-								stateChangeCallback(keyboardOpened)
+								stateChangeCallback(keyboardOpened);
 							} else {
 								print('hello2');
-								stateChangeCallback(keyboardClosed)
+								stateChangeCallback(keyboardClosed);
 							}
 						}
 						_kvc.onChange.listen(_kvcEvent);

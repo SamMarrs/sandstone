@@ -76,8 +76,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 				shouldHideBottomSheet = FSM.BooleanStateValue(
 					validateFalse: (currentState, nextState, manager) => true,
 					validateTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(currentState, bottomSheetClosed)!
-							&& !manager.getFromState(nextState, shouldShowBottomSheet)!;
+						return !manager.getFromState(nextState, shouldShowBottomSheet)!;
 					},
 					value: false
 				),
@@ -323,13 +322,13 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 								bsState = _cbssm.value;
 								switch (bsState) {
 									case BOTTOM_SHEET_STATES.CLOSED:
-										stateChangeCallback(closedBottomSheet)
+										stateChangeCallback(closedBottomSheet);
 										break;
 									case BOTTOM_SHEET_STATES.MAXIMIZED:
-										stateChangeCallback(openBottomSheetMaximized)
+										stateChangeCallback(openBottomSheetMaximized);
 										break;
 									case BOTTOM_SHEET_STATES.MINIMIZED:
-										stateChangeCallback(openBottomSheetMinimized)
+										stateChangeCallback(openBottomSheetMinimized);
 										break;
 								}
 							}
@@ -359,9 +358,9 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					stateUpdates: (stateChangeCallback) {
 						void _kvcEvent(bool visible) {
 							if (visible) {
-								stateChangeCallback(keyboardOpened)
+								stateChangeCallback(keyboardOpened);
 							} else {
-								stateChangeCallback(keyboardClosed)
+								stateChangeCallback(keyboardClosed);
 							}
 						}
 						_kvc.onChange.listen(_kvcEvent);
