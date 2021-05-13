@@ -24,11 +24,6 @@ part 'managed_classes/StateGraph.dart';
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
 
-// TODO: Test that no mirrored transition will ever fail.
-// This test should fail initialization.
-// This will likely be an assertion during the initialization of StateGraph.
-// If the StateGraph fails to find a valid state for a MirroredTransition, fail the StateGraph initialization.
-
 // TODO: If possible, check for infinite state change cycle, where the state changes indefinitely without user input.
 
 /// Creates and manages a finite state machine.
