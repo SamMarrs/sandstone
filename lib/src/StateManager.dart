@@ -29,6 +29,8 @@ part 'managed_classes/StateGraph.dart';
 // This will likely be an assertion during the initialization of StateGraph.
 // If the StateGraph fails to find a valid state for a MirroredTransition, fail the StateGraph initialization.
 
+// TODO: If possible, check for infinite state change cycle, where the state changes indefinitely without user input.
+
 /// Creates and manages a finite state machine.
 class StateManager {
 	final void Function() _notifyListeners;
@@ -77,8 +79,8 @@ class StateManager {
 		required void Function() notifyListeners,
 		required List<BooleanStateValue> managedValues,
 		required List<StateTransition> stateTransitions,
-		List<StateAction>? stateActions,
 		List<FSMMirror>? mirroredFSMs,
+		List<StateAction>? stateActions,
 		bool showDebugLogs = false,
 		bool optimisticTransitions = false,
 		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX
