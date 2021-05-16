@@ -4,9 +4,11 @@ import 'dart:developer' as Developer;
 import 'dart:math' as Math;
 
 import 'package:flutter/widgets.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
 import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
 
 import 'configurations/StateValidationLogic.dart';
+import 'unmanaged_classes/Transition.dart';
 import 'utilities/Utils.dart';
 
 import 'unmanaged_classes/StateTransition.dart';
@@ -34,17 +36,41 @@ class StateManager {
 
 	final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions = LinkedHashMap();
 
-	final HashSet<StateTransition> _stateTransitions = HashSet();
+	final HashSet<Transition> _stateTransitions = HashSet();
 	final HashSet<MirroredTransition> _mirroredTransitions = HashSet();
 
 	final HashSet<ManagedValue> _mirroredStates = HashSet();
 	final HashSet<ManagedValue> _canBeXStates = HashSet();
-	final LinkedHashMap<BooleanStateValue, ManagedValue> _managedValues = LinkedHashMap();
-	ManagedValue? getManagedValue(BooleanStateValue booleanStateValue) => _managedValues[booleanStateValue];
+	final LinkedHashMap<StateValue, ManagedValue> _managedValues = LinkedHashMap();
+	ManagedValue? getManagedValue(StateValue booleanStateValue) => _managedValues[booleanStateValue];
 
 	final bool _showDebugLogs;
 	final bool _optimisticTransitions;
 	final StateValidationLogic _stateValidationLogic;
+
+	bool _transitionsPaused = false;
+	/// When `shouldIgnore` is set to `true`, queuing of all non-mirrored transitions will be ignored,
+	/// and all processing of transitions will be paused. When `clearQueue` is true, all non-mirrored
+	/// transitions will be cleared from the queue.
+	///
+	/// All queued [MirroredTransition] will be buffered and run when this is set back to `false`.
+	///
+	/// This becomes useful when the context of this [StateManager] is no longer the currently visible route.
+	/// Callbacks to this [StateManager] may still affect it when a different route is visible, even though the two routes
+	/// should be independent.
+	void pauseTransitions(bool shouldIgnore, {bool? clearQueue}) {
+		if (shouldIgnore != _transitionsPaused) {
+			_transitionsPaused = shouldIgnore;
+			if (clearQueue?? false) {
+				_transitionBuffer.clear();
+			}
+			if (!shouldIgnore) {
+				_queueTransition(null);
+			} else if (_showDebugLogs) {
+				Developer.log('Ignoring transitions.');
+			}
+		}
+	}
 
 	StateManager._({
 		required void Function() notifyListener,
@@ -142,11 +168,13 @@ class StateManager {
 					position: i,
 					manager: manager
 				);
-				BooleanStateValue sv = manager._managedValues[managedValues[i]]!._stateValue;
+				StateValue sv = manager._managedValues[managedValues[i]]!._stateValue;
 				if (
-					sv.stateValidationLogic == StateValidationLogic.canBeX
+					sv is BooleanStateValue
+					&& sv.stateValidationLogic == StateValidationLogic.canBeX
 					|| (
-						sv.stateValidationLogic == null
+						sv is BooleanStateValue
+						&& sv.stateValidationLogic == null
 						&& manager._stateValidationLogic == StateValidationLogic.canBeX
 					)
 				) {
@@ -171,8 +199,8 @@ class StateManager {
 		}
 		bool initializeStateGraph(
 			StateManager manager,
-			HashSet<StateTransition> stateTransitions,
-			LinkedHashMap<BooleanStateValue, ManagedValue> managedValues
+			HashSet<Transition> stateTransitions,
+			LinkedHashMap<StateValue, ManagedValue> managedValues
 		) {
 			_StateGraph? stateGraph = _StateGraph.create(
 				manager: manager,
@@ -277,7 +305,6 @@ class StateManager {
 		);
 	}
 
-	DoubleLinkedQueue<MirroredTransition> _mirroredTransitionBuffer = DoubleLinkedQueue();
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
 	bool _performingTransition = false;
 	/// Queues a [StateTransition] to run.
@@ -299,15 +326,20 @@ class StateManager {
 			bool? jumpQueue
 		}
 	) {
-		bool notMirrored = !_mirroredTransitions.contains(transition);
-		assert(notMirrored, 'Mirrored transitions can only be used through the callback provided by FSMMirror');
-		if (notMirrored) {
+		if (!_transitionsPaused) {
 			_queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
+		} else if (_showDebugLogs) {
+			Developer.log('Ignoring the transition "${transition.name}", because ignoreTransitions is set to true.');
 		}
 	}
 
+	DoubleLinkedQueue<MirroredTransition> _mirroredTransitionBuffer = DoubleLinkedQueue();
+	bool _routeIsolationOccurred = false;
 	void _queueMirroredTransition(MirroredTransition transition) {
 		assert(_stateTransitions.contains(transition), 'Unknown mirrored transition: "${transition.name}".');
+		if (_transitionsPaused) {
+			_routeIsolationOccurred = true;
+		}
 		if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
 			assert(!(transition is MirroredTransition));
 			if (_showDebugLogs) {
@@ -325,8 +357,9 @@ class StateManager {
 			}
 			return;
 		}
+
 		_mirroredTransitionBuffer.addLast(transition);
-		if (!_performingTransition) {
+		if (!_performingTransition && !_transitionsPaused) {
 			Future(_processTransition);
 		}
 	}
@@ -377,12 +410,83 @@ class StateManager {
 			}
 		}
 	}
+
+	void _processRouteIsolationMirrorBuffer() {
+		StateTuple currentState = _stateGraph._currentState;
+		StateTuple? nextState = currentState;
+		// fast forward the state by applying all of the buffered transitions.
+		if (_showDebugLogs) {
+			Developer.log('Fast forwarding the state with all of the buffered mirrored transitions.');
+		}
+		_mirroredTransitionBuffer.forEach(
+			(mirroredTransition) {
+				// This assertion should never fail if StateGraph is initialized properly.
+				assert(_stateGraph._validStates[nextState]!.containsKey(mirroredTransition));
+				nextState = _stateGraph._validStates[nextState]![mirroredTransition];
+			}
+		);
+		assert(nextState != null);
+		if (nextState == null) {
+			_performingTransition = false;
+			_queueTransition(null);
+			return;
+		}
+		if (currentState != nextState) {
+			_stateGraph.changeState(nextState!);
+		}
+		void purgeQueue() {
+			// Purge _transitionBuffer of invalid transitions given this new state.
+			_transitionBuffer.removeWhere(
+				(queuedTransition) {
+					// If these null checks fails, it is a mistake in the implantation.
+					// Checks during initialization of the manager should guarantee these.
+					return !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
+				}
+			);
+			// If ignoreDuplicates is set, remove the transitions that might now be duplicated in the queue.
+			_transitionBuffer.forEachEntry(
+				(entry) {
+					if (entry.element.ignoreDuplicates && entry.previousEntry() != null && entry.element == entry.previousEntry()!.element) {
+						entry.remove();
+					}
+				}
+			);
+		}
+		purgeQueue();
+		if (currentState != nextState) {
+			_notifyListeners();
+		}
+		assert(WidgetsBinding.instance != null);
+		WidgetsBinding.instance!.addPostFrameCallback(
+			(timeStamp) {
+				if (currentState != nextState) {
+					_doActions();
+				}
+				_performingTransition = false;
+				_queueTransition(null);
+			}
+		);
+	}
+
 	void _processTransition() {
 		// If a separate isolate queues a transition, this check could change between _queueTransition and here.
 		// Need to check again.
-		if (_performingTransition || (_transitionBuffer.isEmpty && _mirroredTransitionBuffer.isEmpty)) return;
+		if (
+			_performingTransition
+			|| _transitionsPaused
+			|| (
+				_transitionBuffer.isEmpty
+				&& _mirroredTransitionBuffer.isEmpty
+			)
+		) return;
+
 		_performingTransition = true;
-		late StateTransition transition;
+		if (_mirroredTransitionBuffer.isNotEmpty && _routeIsolationOccurred) {
+			_routeIsolationOccurred = false;
+			return _processRouteIsolationMirrorBuffer();
+		}
+
+		late Transition transition;
 		if (_mirroredTransitionBuffer.isNotEmpty) {
 			transition = _mirroredTransitionBuffer.removeFirst();
 			if (_showDebugLogs) {
@@ -443,7 +547,7 @@ class StateManager {
 
 		if (transition.action != null) {
 			if (_optimisticTransitions) {
-				Map<BooleanStateValue, bool> diff = StateTuple._findDifference(currentState, nextState);
+				Map<StateValue, bool> diff = StateTuple._findDifference(currentState, nextState);
 				diff.removeWhere((key, value) => transition.stateChanges.containsKey(key));
 				transition.action!(this, diff);
 			} else {

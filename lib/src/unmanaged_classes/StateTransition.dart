@@ -1,6 +1,7 @@
 import '../StateManager.dart';
 
 import 'BooleanStateValue.dart';
+import 'Transition.dart';
 
 /// Defines a transition between states.
 ///
@@ -10,7 +11,7 @@ import 'BooleanStateValue.dart';
 /// ```dart
 /// stateManager.queueTransition(this);
 /// ```
-class StateTransition {
+class StateTransition implements Transition<BooleanStateValue> {
 	/// Used for debugging purposes
 	final String name;
 

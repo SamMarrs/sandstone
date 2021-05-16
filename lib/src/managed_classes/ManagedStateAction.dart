@@ -19,7 +19,7 @@ class _ManagedStateAction {
 	});
 
 	static _ManagedStateAction? create({
-		required LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
+		required LinkedHashMap<StateValue, ManagedValue> managedValues,
 		required StateAction stateAction
 	}) {
 		assert(managedValues.isNotEmpty); // controlled by state manager
