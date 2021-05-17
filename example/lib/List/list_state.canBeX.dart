@@ -83,7 +83,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 				shouldHideBottomSheet = FSM.BooleanStateValue(
 					validateFalse: (currentState, nextState, manager) => true,
 					validateTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(nextState, shouldShowBottomSheet)!;
+						return !manager.getFromState(nextState, shouldShowBottomSheet)!
+							&& !manager.getFromState(nextState, bottomSheetClosed)!;
 					},
 					value: false
 				),
@@ -91,7 +92,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					validateFalse: (currentState, nextState, manager) => true,
 					validateTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(nextState, searching)!
-							&& !manager.getFromState(nextState, shouldHideBottomSheet)!;
+							&& !manager.getFromState(nextState, shouldHideBottomSheet)!
+							&& manager.getFromState(nextState, bottomSheetClosed)!;
 					},
 					value: false
 				),
@@ -217,69 +219,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					},
 				),
 			],
-			stateActions: [
-				FSM.StateAction(
-					name: 'search',
-					registeredStateValues: {
-						searching: true,
-					},
-					action: (manager) {
-						_getItems(searchText: _searchText, offset: 0).then(
-							(results) {
-								_dataModel._replaceAll(results.item2);
-								if (results.item1) {
-									stateManager.queueTransition(_setEndFound);
-								} else {
-									stateManager.queueTransition(_stopSearching);
-								}
-							}
-						).catchError(
-							(error) {
-								assert(false, error.toString());
-								stateManager.queueTransition(_setEndFound);
-							}
-						);
-					},
-				),
-				FSM.StateAction(
-					name: 'openBottomSheet',
-					registeredStateValues: {
-						shouldShowBottomSheet: true
-					},
-					action: (manager) {
-						BottomSheetConfig? config = _getBottomSheetConfig == null ? null : _getBottomSheetConfig!();
-						if (config == null) {
-							manager.queueTransition(hideBottomSheet);
-						} else {
-							BuildContext context = _getScaffoldContext();
-							// Hide the keyboard if its up.
-							FocusScopeNode  focus = FocusScope.of(context);
-							if (!focus.hasPrimaryFocus && focus.focusedChild != null) {
-								FocusManager.instance.primaryFocus?.unfocus();
-							}
-							_cbssm.showCustomBottomSheet(
-								context: context,
-								minimizedHeight: config.minimizedHeight,
-								maximizedHeight: config.maximizedHeight,
-								width: config.width,
-								maximizedBody: config.maximizedBody,
-								minimizedBody: config.minimizedBody,
-								startMaximized: config.startExpanded,
-								disableSizeSnapping: config.disableSizeSnapping,
-							);
-						}
-					},
-				),
-				FSM.StateAction(
-					name: 'closeBottomSheet',
-					registeredStateValues: {
-						shouldHideBottomSheet: true
-					},
-					action: (manager) {
-						_cbssm.close();
-					},
-				)
-			],
 			mirroredFSMs: [
 				FSM.FSMMirror(
 					states: [
@@ -292,10 +231,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							stateChanges: {
 								bottomSheetClosed: false,
 								bottomSheetMinimized: true,
-								// These two states are only needed for un-mirrored opening or closing.
-								// We don't want their related actions running again.
-								shouldShowBottomSheet: false,
-								shouldHideBottomSheet: false,
 							}
 						),
 						openBottomSheetMaximized = FSM.MirroredTransition(
@@ -303,20 +238,12 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							stateChanges: {
 								bottomSheetClosed: false,
 								bottomSheetMinimized: false,
-								// These two states are only needed for un-mirrored opening or closing.
-								// We don't want their related actions running again.
-								shouldShowBottomSheet: false,
-								shouldHideBottomSheet: false,
 							}
 						),
 						closedBottomSheet = FSM.MirroredTransition(
 							name: 'closeBottomSheet',
 							stateChanges: {
 								bottomSheetClosed: true,
-								// These two states are only needed for un-mirrored opening or closing.
-								// We don't want their related actions running again.
-								shouldShowBottomSheet: false,
-								shouldHideBottomSheet: false
 							}
 						),
 					],
@@ -350,9 +277,10 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							name: 'keyboardOpened',
 							stateChanges: {
 								keyboardVisible: true,
-								shouldHideBottomSheet: true,
-								shouldShowBottomSheet: false
-							}
+							},
+							action: (manager, additionalChanges) {
+								_cbssm.close();
+							},
 						),
 						keyboardClosed = FSM.MirroredTransition(
 							name: 'keyboardClosed',
@@ -364,17 +292,80 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					stateUpdates: (stateChangeCallback) {
 						void _kvcEvent(bool visible) {
 							if (visible) {
-								print('hello');
 								stateChangeCallback(keyboardOpened);
 							} else {
-								print('hello2');
 								stateChangeCallback(keyboardClosed);
 							}
 						}
 						_kvc.onChange.listen(_kvcEvent);
 					},
 				)
-			]
+			],
+			stateActions: [
+				FSM.StateAction(
+					name: 'search',
+					registeredStateValues: {
+						searching: true,
+					},
+					action: (manager) {
+						_getItems(searchText: _searchText, offset: 0).then(
+							(results) {
+								_dataModel._replaceAll(results.item2);
+								if (results.item1) {
+									stateManager.queueTransition(_setEndFound);
+								} else {
+									stateManager.queueTransition(_stopSearching);
+								}
+							}
+						).catchError(
+							(error) {
+								assert(false, error.toString());
+								stateManager.queueTransition(_setEndFound);
+							}
+						);
+					},
+				),
+				FSM.StateAction(
+					name: 'openBottomSheet',
+					registeredStateValues: {
+						shouldShowBottomSheet: true
+						bottomSheetClosed: true
+					},
+					action: (manager) {
+						BottomSheetConfig? config = _getBottomSheetConfig == null ? null : _getBottomSheetConfig!();
+						if (config == null) {
+							manager.queueTransition(hideBottomSheet);
+						} else {
+							BuildContext context = _getScaffoldContext();
+							// Hide the keyboard if its up.
+							FocusScopeNode  focus = FocusScope.of(context);
+							if (!focus.hasPrimaryFocus && focus.focusedChild != null) {
+								FocusManager.instance.primaryFocus?.unfocus();
+							}
+							_cbssm.showCustomBottomSheet(
+								context: context,
+								minimizedHeight: config.minimizedHeight,
+								maximizedHeight: config.maximizedHeight,
+								width: config.width,
+								maximizedBody: config.maximizedBody,
+								minimizedBody: config.minimizedBody,
+								startMaximized: config.startExpanded,
+								disableSizeSnapping: config.disableSizeSnapping,
+							);
+						}
+					},
+				),
+				FSM.StateAction(
+					name: 'closeBottomSheet',
+					registeredStateValues: {
+						shouldHideBottomSheet: true,
+						bottomSheetClosed: false
+					},
+					action: (manager) {
+						_cbssm.close();
+					},
+				),
+			],
 		);
 
 		assert(sm != null, 'Failed to initialize the state manager.');
