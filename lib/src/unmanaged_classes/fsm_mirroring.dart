@@ -96,7 +96,7 @@ class MirroredStateValue implements StateValue {
 	});
 }
 
-class MirroredTransition implements Transition<StateValue> {
+class MirroredTransition implements Transition<MirroredStateValue> {
 	FSMMirror? _mirror;
 	FSMMirror? get mirror => _mirror;
 

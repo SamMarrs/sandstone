@@ -25,7 +25,7 @@ class _ManagedStateAction {
 		assert(managedValues.isNotEmpty); // controlled by state manager
 		bool isNotEmpty = FSMTests.stateActionValuesNotEmpty(stateAction);
 		if (managedValues.isEmpty || !isNotEmpty) return null;
-		List<MapEntry<BooleanStateValue, bool>> entries = stateAction.registeredStateValues.entries.toList();
+		List<MapEntry<StateValue, bool>> entries = stateAction.registeredStateValues.entries.toList();
 		Map<int, bool> rStateValues = {};
 		for (int i = 0; i < entries.length; i++) {
 			assert(managedValues.containsKey(entries[i].key));
@@ -41,16 +41,18 @@ class _ManagedStateAction {
 
 	int? _mask;
 	int get mask {
-		if (_mask != null) return _mask!;
-		_mask = Utils.maskFromMap<int>(registeredStateValues, (key) => key);
-		return mask;
+		if (_mask == null) {
+			_mask = Utils.maskFromMap<int>(registeredStateValues, (key) => key);
+		}
+		return _mask!;
 	}
 
 	int? _hash;
 	int get hash {
-		if (_hash != null) return _hash!;
-		_hash = Utils.hashFromMap<int>(registeredStateValues, (key) => key);
-		return hash;
+		if (_hash == null) {
+			_hash = Utils.hashFromMap<int>(registeredStateValues, (key) => key);
+		}
+		return _hash!;
 	}
 
 	bool shouldRun(StateTuple st) {

@@ -25,6 +25,6 @@ class Utils {
 				}
 			}
 		);
-		return hashes.length == 0 ? 0 : hashes.reduce((value, element) => value & element);
+		return hashes.length == 0 ? 0 : hashes.reduce((value, element) => value | element);
 	}
 }

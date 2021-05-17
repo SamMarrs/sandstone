@@ -1,4 +1,4 @@
-import 'BooleanStateValue.dart';
+import 'StateValue.dart';
 import '../StateManager.dart';
 
 /// Defines an action to run after a state change.
@@ -6,8 +6,9 @@ class StateAction {
 	/// Used for debugging.
 	final String name;
 
+	// TODO: Should this be replaced with a function that returns true/false?
 	/// Defines during which states, this [StateAction] will run.
-	final Map<BooleanStateValue, bool> registeredStateValues;
+	final Map<StateValue, bool> registeredStateValues;
 
 	/// Defines an action to run.
 	///

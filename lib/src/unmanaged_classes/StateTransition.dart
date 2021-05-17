@@ -1,6 +1,7 @@
 import '../StateManager.dart';
 
 import 'BooleanStateValue.dart';
+import 'StateValue.dart';
 import 'Transition.dart';
 
 /// Defines a transition between states.
@@ -24,7 +25,7 @@ class StateTransition implements Transition<BooleanStateValue> {
 	///
 	/// When optimisticTransitions is enabled within [StateManager], [additionalChanges] will provide the
 	/// state changes that were not explicitly defined in this transition. The map will be empty otherwise.
-	final void Function(StateManager manager, Map<BooleanStateValue, bool> additionalChanges)? action;
+	final void Function(StateManager manager, Map<StateValue, bool> additionalChanges)? action;
 
 	/// When `true`, this [StateTransition] will never appear sequentially after itself in the transition queue.
 	final bool ignoreDuplicates;

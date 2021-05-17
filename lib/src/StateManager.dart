@@ -219,8 +219,6 @@ class StateManager {
 			List<StateAction>? stateActions,
 			_StateGraph stateGraph
 		) {
-			// FIXME: This creates a map with many empty items. Change to only store keys that are attached to actions.
-			manager._managedStateActions..addEntries(stateGraph._validStates.keys.map((state) => MapEntry(state, [])));
 			HashSet<StateAction> actionsThatMayRun = HashSet();
 			bool stateActionError = false;
 			if (stateActions != null) {
@@ -233,11 +231,15 @@ class StateManager {
 								managedValues: stateGraph._managedValues,
 								stateAction: action
 							);
+							assert(msa != null);
 							if (msa != null) {
 								stateGraph._validStates.forEach(
 									(state, _) {
 										if (msa.shouldRun(state)) {
 											actionsThatMayRun.add(action);
+											if (!manager._managedStateActions.containsKey(state)) {
+												manager._managedStateActions[state] = [];
+											}
 											manager._managedStateActions[state]!.add(msa);
 										}
 									}
@@ -291,17 +293,22 @@ class StateManager {
 	}
 
 	/// Returns the specified state value within the provided [StateTuple], given that [value] has been registered with this [StateManager].
-	bool? getFromState(StateTuple stateTuple, BooleanStateValue value) {
+	bool? getFromState(StateTuple stateTuple, StateValue value) {
 		assert(stateTuple._manager == this, 'StateTuple must be from the same state manager.');
-		assert(_managedValues.containsKey(value), 'BooleanStateValue must have been registered with this state manager.');
+		assert(_managedValues.containsKey(value), 'StateValue must have been registered with this state manager.');
 		if (stateTuple._manager != this || !_managedValues.containsKey(value)) return null;
 		// Performed null check in previous if statement.
 		return stateTuple._values[_managedValues[value]!._position];
 	}
 
 	void _doActions() {
-		_managedStateActions[_stateGraph._currentState]!.forEach(
-			(action) => action.action(this)
+		_managedStateActions[_stateGraph._currentState]?.forEach(
+			(action) {
+				if (_showDebugLogs) {
+					Developer.log('Running action "${action.name}".');
+				}
+				action.action(this);
+			}
 		);
 	}
 
@@ -486,23 +493,24 @@ class StateManager {
 			return _processRouteIsolationMirrorBuffer();
 		}
 
-		late Transition transition;
+		MirroredTransition? mirroredTransition;
+		StateTransition? stateTransition;
 		if (_mirroredTransitionBuffer.isNotEmpty) {
-			transition = _mirroredTransitionBuffer.removeFirst();
+			mirroredTransition = _mirroredTransitionBuffer.removeFirst();
 			if (_showDebugLogs) {
-				Developer.log('Processing mirrored transition "${transition.name}".');
+				Developer.log('Processing mirrored transition "${mirroredTransition.name}".');
 			}
 		} else {
-			transition = _transitionBuffer.removeFirst();
+			stateTransition = _transitionBuffer.removeFirst();
 			if (_showDebugLogs) {
-				Developer.log('Processing transition "${transition.name}".');
+				Developer.log('Processing transition "${stateTransition.name}".');
 			}
 		}
 
 		StateTuple currentState = _stateGraph._currentState;
 		// If these null checks fails, it is a mistake in the implementation.
 		// Checks during initialization of the manager should guarantee these.
-		StateTuple? nextState = _stateGraph._validStates[currentState]![transition];
+		StateTuple? nextState = _stateGraph._validStates[currentState]![stateTransition?? mirroredTransition];
 		// Check if transition is possible given the current state. Ignore if not.
 		if (nextState == null) {
 			_performingTransition = false;
@@ -545,14 +553,26 @@ class StateManager {
 		}
 		purgeQueue();
 
-		if (transition.action != null) {
+		if (mirroredTransition?.action != null) {
+			Map<StateValue, bool> diff = {};
 			if (_optimisticTransitions) {
-				Map<StateValue, bool> diff = StateTuple._findDifference(currentState, nextState);
-				diff.removeWhere((key, value) => transition.stateChanges.containsKey(key));
-				transition.action!(this, diff);
-			} else {
-				transition.action!(this, {});
+				diff = StateTuple._findDifference(currentState, nextState);
+				diff.removeWhere((key, value) => mirroredTransition!.stateChanges.containsKey(key));
 			}
+			if (_showDebugLogs) {
+				Developer.log('Running transition action "${mirroredTransition!.name}".');
+			}
+			mirroredTransition!.action!(this, diff);
+		} else if (stateTransition?.action != null) {
+			Map<StateValue, bool> diff = {};
+			if (_optimisticTransitions) {
+				diff = StateTuple._findDifference(currentState, nextState);
+				diff.removeWhere((key, value) => stateTransition!.stateChanges.containsKey(key));
+			}
+			if (_showDebugLogs) {
+				Developer.log('Running transition action "${stateTransition!.name}".');
+			}
+			stateTransition!.action!(this, diff);
 		}
 		if (currentState != nextState) {
 			_notifyListeners();
