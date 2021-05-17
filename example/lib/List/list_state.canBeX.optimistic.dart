@@ -84,7 +84,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 				shouldHideBottomSheet = FSM.BooleanStateValue(
 					validateFalse: (currentState, nextState, manager) => true,
 					validateTrue: (currentState, nextState, manager) {
-						return !manager.getFromState(nextState, shouldShowBottomSheet)!;
+						return !manager.getFromState(nextState, shouldShowBottomSheet)!
+							&& !manager.getFromState(nextState, bottomSheetClosed)!;
 					},
 					value: false
 				),
@@ -92,7 +93,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					validateFalse: (currentState, nextState, manager) => true,
 					validateTrue: (currentState, nextState, manager) {
 						return !manager.getFromState(nextState, searching)!
-							&& !manager.getFromState(nextState, shouldHideBottomSheet)!;
+							&& !manager.getFromState(nextState, shouldHideBottomSheet)!
+							&& manager.getFromState(nextState, bottomSheetClosed)!;
 					},
 					value: false
 				),
@@ -322,10 +324,6 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							stateChanges: {
 								bottomSheetClosed: false,
 								bottomSheetMinimized: true,
-								// These two states are only needed for un-mirrored opening or closing.
-								// We don't want their related actions running again.
-								shouldShowBottomSheet: false,
-								shouldHideBottomSheet: false,
 							}
 						),
 						openBottomSheetMaximized = FSM.MirroredTransition(
@@ -333,20 +331,12 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							stateChanges: {
 								bottomSheetClosed: false,
 								bottomSheetMinimized: false,
-								// These two states are only needed for un-mirrored opening or closing.
-								// We don't want their related actions running again.
-								shouldShowBottomSheet: false,
-								shouldHideBottomSheet: false,
 							}
 						),
 						closedBottomSheet = FSM.MirroredTransition(
 							name: 'closeBottomSheet',
 							stateChanges: {
 								bottomSheetClosed: true,
-								// These two states are only needed for un-mirrored opening or closing.
-								// We don't want their related actions running again.
-								shouldShowBottomSheet: false,
-								shouldHideBottomSheet: false
 							}
 						),
 					],
@@ -380,9 +370,10 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							name: 'keyboardOpened',
 							stateChanges: {
 								keyboardVisible: true,
-								shouldHideBottomSheet: true,
-								shouldShowBottomSheet: false,
-							}
+							},
+							action: (manager, additionalChanges) {
+								_cbssm.close();
+							},
 						),
 						keyboardClosed = FSM.MirroredTransition(
 							name: 'keyboardClosed',
