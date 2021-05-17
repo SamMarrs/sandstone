@@ -394,10 +394,8 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 					stateUpdates: (stateChangeCallback) {
 						void _kvcEvent(bool visible) {
 							if (visible) {
-								print('hello');
 								stateChangeCallback(keyboardOpened);
 							} else {
-								print('hello2');
 								stateChangeCallback(keyboardClosed);
 							}
 						}
