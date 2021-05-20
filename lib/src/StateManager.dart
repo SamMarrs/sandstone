@@ -58,13 +58,13 @@ class StateManager {
 	/// This becomes useful when the context of this [StateManager] is no longer the currently visible route.
 	/// Callbacks to this [StateManager] may still affect it when a different route is visible, even though the two routes
 	/// should be independent.
-	void pauseTransitions(bool shouldIgnore, {bool? clearQueue}) {
-		if (shouldIgnore != _transitionsPaused) {
-			_transitionsPaused = shouldIgnore;
+	void pauseTransitions(bool shouldPause, {bool? clearQueue}) {
+		if (shouldPause != _transitionsPaused) {
+			_transitionsPaused = shouldPause;
 			if (clearQueue?? false) {
 				_transitionBuffer.clear();
 			}
-			if (!shouldIgnore) {
+			if (!shouldPause) {
 				_queueTransition(null);
 			} else if (_showDebugLogs) {
 				Developer.log('Ignoring transitions.');
@@ -382,7 +382,7 @@ class StateManager {
 			_transitionBuffer.clear();
 		}
 		if (transition == null) {
-			if ((_transitionBuffer.isNotEmpty || _mirroredTransitionBuffer.isNotEmpty) && !_performingTransition) {
+			if ((_transitionBuffer.isNotEmpty || _mirroredTransitionBuffer.isNotEmpty) && !_performingTransition && !_transitionsPaused) {
 				Future(_processTransition);
 			}
 		} else {
@@ -432,6 +432,7 @@ class StateManager {
 				nextState = _stateGraph._validStates[nextState]![mirroredTransition];
 			}
 		);
+		_mirroredTransitionBuffer.clear();
 		assert(nextState != null);
 		if (nextState == null) {
 			_performingTransition = false;
