@@ -53,45 +53,33 @@ class _StateGraph {
 		late final void Function(StateTuple) optimisticFindNextState;
 		late final void Function(StateTuple) conservativeFindNextState;
 
-		// If traversing with a mirrored transition, use an optimistic algorithm to find the next state.
-		findMirroredState = (StateTuple state, MirroredTransition transition) {
-			Map<int, bool> updates = {};
+		StateTuple? findNextStateOptimistically(
+			StateTuple currentState,
+			Transition transition,
+		) {
+			Map<int, bool> requiredChanges = {};
 			transition.stateChanges.forEach(
 				(key, value) {
 					assert(managedValues[key] != null);
-					updates[managedValues[key]!._position] = value;
+					requiredChanges[managedValues[key]!._position] = value;
 				}
 			);
-			// We don't want to change mirrored values outside of those defined in the transition.
-			bool noMirroredChanges(StateTuple nextState) {
-				return !manager._mirroredStates.any(
-					(managedValue) {
-						bool oldValue = state._values[managedValue._position];
-						bool newValue = nextState._values[managedValue._position];
-						if (
-							transition is MirroredTransition
-							&& transition.stateChanges.containsKey(managedValue._stateValue)
-							&& transition.stateChanges[managedValue._stateValue] == newValue
-						) {
-							return false;
-						} else {
-							return oldValue != newValue;
-						}
+			// [[int, bool]]
+			// Find all values that are allowed to changes. This excluded changes to mirrored values.
+			List<List<dynamic>> possibleChanges = [];
+			manager._managedValues.forEach(
+				(sv, mv) {
+					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(mv._position)) {
+						possibleChanges.add([mv._position, currentState._values[mv._position]]);
 					}
-				);
-			}
-			bool hasNeededChanges(StateTuple nextState) {
-				return updates.entries.every(
-					(entry) {
-						return nextState._values[entry.key] == entry.value;
-					}
-				);
-			}
+				}
+			);
+
 			bool isValid(StateTuple nextState) {
 				bool _isValid = nextState._valueReferences.every(
 					(managedValue) {
 						bool newValue = nextState._values[managedValue._position];
-						bool oldValue = state._values[managedValue._position];
+						bool oldValue = currentState._values[managedValue._position];
 						if (
 							managedValue._stateValue is BooleanStateValue
 							&& (
@@ -103,66 +91,94 @@ class _StateGraph {
 							)
 							&& newValue != oldValue
 						) {
-							return managedValue._canChange(state, nextState);
+							return managedValue._canChange(currentState, nextState);
 						}
 						return true;
 					}
 				);
 				return _isValid && manager._canBeXStates.every(
-					(stateValue) => stateValue._isValid(state, nextState)
+					(stateValue) => stateValue._isValid(currentState, nextState)
 				);
 			}
-			int findDifference(StateTuple a, StateTuple b) {
-				int diff = 0;
-				for (int i = 0; i < managedValues.length; i++) {
-					if (a._values[i] != b._values[i]) {
-						diff++;
+			int mapToInt(StateTuple baseState, Map<int, bool> changes) {
+				LinkedHashMap<int, bool> newHash = LinkedHashMap();
+				baseState._valueReferences.forEach(
+					(mv) {
+						if (changes.containsKey(mv._position)) {
+							newHash[mv._position] = changes[mv._position]!;
+						} else {
+							newHash[mv._position] = baseState._values[mv._position];
+						}
 					}
-				}
-				return diff;
+				);
+				return Utils.hashFromMap<int>(newHash, (key) => key);
 			}
 
-			int? minDiff;
+			int minDiff = 0;
 			List<StateTuple> minDiffStates = [];
-			StateTuple? minDiffState;
-			int maxInt = (Math.pow(2, managedValues.length) as int) - 1;
-			for (int i = 0; i < maxInt; i++) {
-				StateTuple? nextState = StateTuple._fromHash(managedValues, manager, i);
-				if (
-					nextState != null
-					&& noMirroredChanges(nextState)
-					&& hasNeededChanges(nextState)
-					&& isValid(nextState)
-				) {
-					int diff = findDifference(state, nextState);
-					if (minDiff == null) {
-						minDiff = diff;
-						minDiffState = nextState;
-						minDiffStates = [nextState];
-					} else if (diff < minDiff) {
-						minDiff = diff;
-						minDiffState = nextState;
-						minDiffStates = [nextState];
-					} else if (diff == minDiff) {
+			int maxNumChanges = possibleChanges.length;
+
+			void makeChanges({
+				required Map<int, bool> changes,
+				required int diff,
+				int? upperBound
+			}) {
+				// N
+				// i = diff - 1; i < N; i++
+
+				// i = diff - 1; i < N; i++;
+				//  j = 0; j < i; j++;
+
+				// i = diff - 1; i < N; i++;
+				//  j = 1; j < i; j++;
+				//   k = 0; k < j; k++;
+				if (diff == 0) {
+					changes.addAll(requiredChanges);
+					int hash = mapToInt(currentState, changes);
+					StateTuple? nextState = StateTuple._fromHash(manager._managedValues, manager, hash);
+					// If this fails, it probably is an implementation mistake.
+					assert(nextState != null);
+					if (nextState != null && isValid(nextState)) {
 						minDiffStates.add(nextState);
 					}
+				} else {
+					for (int i = diff - 1; i < (upperBound?? possibleChanges.length); i++) {
+						Map<int, bool> newChange = Map.of(changes);
+						newChange[possibleChanges[i][0]] = !possibleChanges[i][1];
+						makeChanges(changes: newChange, diff: diff - 1, upperBound: i);
+					}
 				}
 			}
-			if (minDiffStates.length > 1) {
-				FSMTests.noStateTransitionsWithMultipleResults(transition, state, minDiffStates);
+
+			while (minDiff <= maxNumChanges && minDiffStates.isEmpty) {
+				minDiffStates = [];
+				makeChanges(changes: {}, diff: minDiff);
+				if (minDiffStates.length > 1) {
+					FSMTests.noStateTransitionsWithMultipleResults(transition, currentState, minDiffStates);
+					return null;
+				} else if (minDiffStates.length == 1) {
+					return minDiffStates.first;
+				}
+				minDiff++;
 			}
 
-			if (minDiffState == null) {
+			return null;
+		}
+
+		// If traversing with a mirrored transition, use an optimistic algorithm to find the next state.
+		findMirroredState = (StateTuple state, MirroredTransition transition) {
+			StateTuple? nextState = findNextStateOptimistically(state, transition);
+			if (nextState == null) {
 				FSMTests.noFailedMirroredTransitions(transition, state);
 				failedMirroredTransition = true;
 			} else {
 				usedTransitions.add(transition);
-				adjacencyList[state]![transition] = minDiffState;
-				if (!adjacencyList.containsKey(minDiffState)) {
+				adjacencyList[state]![transition] = nextState;
+				if (!adjacencyList.containsKey(nextState)) {
 					if (manager._optimisticTransitions) {
-						optimisticFindNextState(minDiffState);
+						optimisticFindNextState(nextState);
 					} else {
-						conservativeFindNextState(minDiffState);
+						conservativeFindNextState(nextState);
 					}
 				}
 			}
@@ -179,115 +195,13 @@ class _StateGraph {
 					if (transition is MirroredTransition) {
 						return findMirroredState(state, transition);
 					}
-					// Find next state with minimum difference from current state.
-					// Assert that there should only be one state with the minimum difference.
-					// If there is one or more states with the minimum difference, save only one as done in conservativeFindNextState
-					Map<int, bool> updates = {};
-					transition.stateChanges.forEach(
-						(key, value) {
-							assert(managedValues[key] != null);
-							updates[managedValues[key]!._position] = value;
-						}
-					);
 
-					// A MirroredTransition can make changes to a mirrored state, but a regular transition may not.
-					// The changes specified by a MirroredTransition should be the only MirroredStateValue changes.
-					bool noMirroredChanges(StateTuple nextState) {
-						return !manager._mirroredStates.any(
-							(managedValue) {
-								bool oldValue = state._values[managedValue._position];
-								bool newValue = nextState._values[managedValue._position];
-								if (
-									transition is MirroredTransition
-									&& transition.stateChanges.containsKey(managedValue._stateValue)
-									&& transition.stateChanges[managedValue._stateValue] == newValue
-								) {
-									return false;
-								} else {
-									return oldValue != newValue;
-								}
-							}
-						);
-					}
-
-					bool hasNeededChanges(StateTuple nextState) {
-						return updates.entries.every(
-							(entry) {
-								return nextState._values[entry.key] == entry.value;
-							}
-						);
-					}
-					bool isValid(StateTuple nextState) {
-						bool _isValid = nextState._valueReferences.every(
-							(managedValue) {
-								bool newValue = nextState._values[managedValue._position];
-								bool oldValue = state._values[managedValue._position];
-								if (
-									managedValue._stateValue is BooleanStateValue
-									&& (
-										(managedValue._stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
-										|| (
-											(managedValue._stateValue as BooleanStateValue).stateValidationLogic == null
-											&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
-										)
-									)
-									&& newValue != oldValue
-								) {
-									return managedValue._canChange(state, nextState);
-								}
-								return true;
-							}
-						);
-						return _isValid && manager._canBeXStates.every(
-							(stateValue) => stateValue._isValid(state, nextState)
-						);
-					}
-					int findDifference(StateTuple a, StateTuple b) {
-						int diff = 0;
-						for (int i = 0; i < managedValues.length; i++) {
-							if (a._values[i] != b._values[i]) {
-								diff++;
-							}
-						}
-						return diff;
-					}
-
-
-					int? minDiff;
-					List<StateTuple> minDiffStates = [];
-					StateTuple? minDiffState;
-					int maxInt = (Math.pow(2, managedValues.length) as int) - 1;
-					for (int i = 0; i < maxInt; i++) {
-						StateTuple? nextState = StateTuple._fromHash(managedValues, manager, i);
-						if (
-							nextState != null
-							&& noMirroredChanges(nextState)
-							&& hasNeededChanges(nextState)
-							&& isValid(nextState)
-						) {
-							int diff = findDifference(state, nextState);
-							if (minDiff == null) {
-								minDiff = diff;
-								minDiffState = nextState;
-								minDiffStates = [nextState];
-							} else if (diff < minDiff) {
-								minDiff = diff;
-								minDiffState = nextState;
-								minDiffStates = [nextState];
-							} else if (diff == minDiff) {
-								minDiffStates.add(nextState);
-							}
-						}
-					}
-					if (minDiffStates.length > 1) {
-						FSMTests.noStateTransitionsWithMultipleResults(transition, state, minDiffStates);
-					}
-
-					if (minDiffState != null) {
+					StateTuple? nextState = findNextStateOptimistically(state, transition);
+					if (nextState != null) {
 						usedTransitions.add(transition);
-						adjacencyList[state]![transition] = minDiffState;
-						if (!adjacencyList.containsKey(minDiffState)) {
-							optimisticFindNextState(minDiffState);
+						adjacencyList[state]![transition] = nextState;
+						if (!adjacencyList.containsKey(nextState)) {
+							optimisticFindNextState(nextState);
 						}
 					}
 				}
