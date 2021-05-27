@@ -3,6 +3,9 @@ part of '../StateManager.dart';
 class _StateGraph {
 	final LinkedHashMap<StateValue, ManagedValue> _managedValues;
 
+	// TODO: The underlying HashMap creates far more buckets than it needs to.
+	// 512 for 224 elements.
+	// This map never changes after initialization of the state manager, so a sparse map may be possible.
 	final HashMap<StateTuple, HashMap<Transition, StateTuple>> _validStates;
 
 	StateTuple _currentState;

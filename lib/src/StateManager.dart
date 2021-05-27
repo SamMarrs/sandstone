@@ -65,7 +65,7 @@ class StateManager {
 				_transitionBuffer.clear();
 			}
 			if (!shouldPause) {
-				_queueTransition(null);
+				_processTransition();
 			} else if (_showDebugLogs) {
 				Developer.log('Ignoring transitions.');
 			}
