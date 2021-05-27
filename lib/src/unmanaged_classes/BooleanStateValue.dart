@@ -1,6 +1,7 @@
 import '../configurations/StateValidationLogic.dart';
 
 import '../StateManager.dart';
+import 'StateValue.dart';
 
 /// Defines a variable that makes up a state within a finite state machine, and how that variable should change.
 ///
@@ -8,7 +9,7 @@ import '../StateManager.dart';
 /// The [StateManager] will use [BooleanStateValue.validateTrue] and [BooleanStateValue.validateFalse] to determine if a possible node within
 /// the FSM graph is valid. The starting node of the FSM will be the cumulative [BooleanStateValue.value] of all initialized state values.
 /// During initialization of [StateManager], [StateTransition]s will be used to traverse the FSM graph, to fine all valid states.
-class BooleanStateValue {
+class BooleanStateValue implements StateValue {
 	/// Used to define when a state is valid given that this variable is true after the transition.
 	/// The [stateValidationLogic] found here, combined with the option found in [StateManager] controls how this function is used.
 	///

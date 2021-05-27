@@ -26,7 +26,7 @@ class StateTuple {
 	}
 
 	StateTuple._fromMap(
-		LinkedHashMap<BooleanStateValue, ManagedValue> valueReferences,
+		LinkedHashMap<StateValue, ManagedValue> valueReferences,
 		this._manager,
 		[Map<int, bool>? updates]
 	) {
@@ -44,7 +44,7 @@ class StateTuple {
 	}
 
 	static StateTuple? _fromHash(
-		LinkedHashMap<BooleanStateValue, ManagedValue> valueReferences,
+		LinkedHashMap<StateValue, ManagedValue> valueReferences,
 		StateManager manager,
 		int stateHash
 	) {
@@ -65,11 +65,11 @@ class StateTuple {
 		return st;
 	}
 
-	static Map<BooleanStateValue, bool> _findDifference(StateTuple stateA, StateTuple stateB) {
+	static Map<StateValue, bool> _findDifference(StateTuple stateA, StateTuple stateB) {
 		assert(stateA._manager == stateB._manager);
 		if (stateA._manager != stateB._manager) return {};
 
-		Map<BooleanStateValue, bool> diff = {};
+		Map<StateValue, bool> diff = {};
 		stateA._valueReferences.forEach(
 			(managedValue) {
 				if (stateA._values[managedValue._position] != stateB._values[managedValue._position]) {

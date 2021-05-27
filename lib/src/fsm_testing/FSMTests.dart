@@ -2,7 +2,8 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
-
+import '../unmanaged_classes/StateValue.dart';
+import '../unmanaged_classes/Transition.dart';
 import '../StateManager.dart';
 import '../unmanaged_classes/BooleanStateValue.dart';
 import '../unmanaged_classes/StateAction.dart';
@@ -21,8 +22,8 @@ class FSMTests {
 	}
 
 	static bool noDuplicateTransitions(
-		HashSet<StateTransition> transitions,
-		StateTransition newTransition
+		HashSet<Transition> transitions,
+		Transition newTransition
 	) {
 		String duplicate = '';
 		bool hasDuplicate = transitions.contains(newTransition);
@@ -40,7 +41,7 @@ class FSMTests {
 	}
 
 	static bool stateTransitionValuesNotEmpty(
-		StateTransition transition
+		Transition transition
 	) {
 		bool isNotEmpty = transition.stateChanges.isNotEmpty;
 		assert(isNotEmpty, 'Transition called "${transition.name}" does not make any changes to the state.');
@@ -58,8 +59,8 @@ class FSMTests {
 	}
 
 	static bool noUnusedTransitions(
-		HashSet<StateTransition> declaredTransitions,
-		HashSet<StateTransition> usedTransitions,
+		HashSet<Transition> declaredTransitions,
+		HashSet<Transition> usedTransitions,
 	) {
 		return declaredTransitions.every(
 			(transition) {
@@ -80,7 +81,7 @@ class FSMTests {
 
 	static bool checkIfAllActionStateValuesRegistered(
 		StateAction  stateAction,
-		LinkedHashMap<BooleanStateValue, ManagedValue> managedValues,
+		LinkedHashMap<StateValue, ManagedValue> managedValues,
 	) {
 		bool allRegistered = stateAction.registeredStateValues.entries.every((element) => managedValues.containsKey(element.key));
 		assert(allRegistered, 'State action called "${stateAction.name}" contains BooleanStateValues that have not been registered with the state manager.');
@@ -109,7 +110,7 @@ class FSMTests {
 	}
 
 	static void noStateTransitionsWithMultipleResults(
-		StateTransition transition,
+		Transition transition,
 		StateTuple previousState,
 		List<StateTuple> minDiffStates
 	) {

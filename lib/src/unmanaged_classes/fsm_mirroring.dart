@@ -2,8 +2,10 @@
 
 import 'dart:collection';
 
-import 'BooleanStateValue.dart';
-import 'StateTransition.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+
+import '../StateManager.dart';
+import 'Transition.dart';
 
 typedef MirroredStateChangeCallback = void Function(MirroredTransition changes);
 class FSMMirror{
@@ -52,8 +54,8 @@ class FSMMirror{
 			return valid;
 		}
 
-		bool noUnChangedStateValue() {
-			HashSet<BooleanStateValue> affectedStates = HashSet();
+		bool noUnchangedStateValue() {
+			HashSet<StateValue> affectedStates = HashSet();
 			transitions.forEach(
 				(transition) {
 					affectedStates.addAll(transition.stateChanges.keys.where((state) => state is MirroredStateValue));
@@ -75,36 +77,38 @@ class FSMMirror{
 		);
 
 		initializedCorrectly = initializedCorrectly && transitionChangesFromThisMirror();
-		initializedCorrectly = initializedCorrectly && noUnChangedStateValue();
+		initializedCorrectly = initializedCorrectly && noUnchangedStateValue();
 
 		this.initializedCorrectly = initializedCorrectly;
 	}
 }
 
-class MirroredStateValue extends BooleanStateValue {
+class MirroredStateValue implements StateValue {
 	FSMMirror? _mirror;
 	FSMMirror? get mirror => _mirror;
+
+	final bool Function(StateTuple previous, StateTuple nextState, StateManager manager) validateTrue = (_,__,___) => true;
+	final bool Function(StateTuple previous, StateTuple nextState, StateManager manager) validateFalse = (_,__,___) => true;
+	final bool value;
 
   	MirroredStateValue({
-		required bool value,
-	}): super(
-		validateFalse: (_,__,___) => true,
-		validateTrue: (_,__,___) => true,
-		value: value
-	);
+		required this.value,
+	});
 }
 
-class MirroredTransition extends StateTransition {
+class MirroredTransition implements Transition<MirroredStateValue> {
 	FSMMirror? _mirror;
 	FSMMirror? get mirror => _mirror;
 
+	final String name;
+	final Map<MirroredStateValue, bool> stateChanges;
+	final void Function(StateManager manager, Map<StateValue, bool> additionalChanges)? action;
+	final bool ignoreDuplicates;
+
 	MirroredTransition({
-		String name = '',
-		required Map<BooleanStateValue, bool> stateChanges,
-		bool ignoreDuplicates = true
-	}): super(
-		name: name,
-		stateChanges: stateChanges,
-		ignoreDuplicates: ignoreDuplicates
-	);
+		this.name = '',
+		required this.stateChanges,
+		this.action,
+		this.ignoreDuplicates = true
+	});
 }
