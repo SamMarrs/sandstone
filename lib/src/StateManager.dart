@@ -72,6 +72,8 @@ class StateManager {
 		}
 	}
 
+	final List<void Function()> _disposeCallbacks = [];
+
 	StateManager._({
 		required void Function() notifyListener,
 		required bool showDebugLogs,
@@ -272,7 +274,11 @@ class StateManager {
 							bsm._queueMirroredTransition(transition);
 						}
 					};
-					mirror.stateUpdates(callback);
+					RegisterDisposeCallback onDisposeCallback = (callback) {
+						bsm._disposeCallbacks.add(callback);
+					};
+
+					mirror.stateUpdates(callback, onDisposeCallback);
 				}
 			);
 		}
@@ -290,6 +296,10 @@ class StateManager {
 		initializeMirroredFSMCallbacks(bsm, mirroredFSMs);
 		bsm._doActions();
 		return bsm;
+	}
+
+	void dispose() {
+		_disposeCallbacks.forEach((callback) => callback());
 	}
 
 	/// Returns the specified state value within the provided [StateTuple], given that [value] has been registered with this [StateManager].

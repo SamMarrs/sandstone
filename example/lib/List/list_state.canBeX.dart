@@ -247,7 +247,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							}
 						),
 					],
-					stateUpdates: (stateChangeCallback) {
+					stateUpdates: (stateChangeCallback, registerDisposeCallback) {
 						BOTTOM_SHEET_STATES bsState = BOTTOM_SHEET_STATES.CLOSED;
 						void handleEvent() {
 							if (_cbssm.value != bsState) {
@@ -289,7 +289,7 @@ class SearchableListStateModel<ListItemType> extends ChangeNotifier {
 							}
 						)
 					],
-					stateUpdates: (stateChangeCallback) {
+					stateUpdates: (stateChangeCallback, registerDisposeCallback) {
 						void _kvcEvent(bool visible) {
 							if (visible) {
 								stateChangeCallback(keyboardOpened);

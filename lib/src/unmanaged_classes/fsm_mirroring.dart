@@ -8,11 +8,12 @@ import '../StateManager.dart';
 import 'Transition.dart';
 
 typedef MirroredStateChangeCallback = void Function(MirroredTransition changes);
+typedef RegisterDisposeCallback = void Function(void Function() callback);
 class FSMMirror{
 
 	final List<MirroredStateValue> states;
 	final List<MirroredTransition> transitions;
-	final void Function(MirroredStateChangeCallback stateChangeCallback) stateUpdates;
+	final void Function(MirroredStateChangeCallback stateChangeCallback, RegisterDisposeCallback registerDisposeCallback) stateUpdates;
 
 	late final bool initializedCorrectly;
 
