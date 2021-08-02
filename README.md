@@ -1,6 +1,6 @@
 Sandstone is a new state management library for Flutter. It is designed to convert common coding patterns into a predictable finite state machine. The library provides tools to cleanly manage and organize business logic, while being able to warn of potential mistakes through analysis of the underlying FSM.
 
-You can read a brief explainer about the core concepts of this library [here](https://medium.com/@SamMarrs/sandstone-yet-another-state-management-solution-8fd2691c8e5c).
+You can read about the core concepts backing ths library [here][article2]. You may also want to check out this older article [here][article1], which covers more of how to use this library.
 
 ## Index
 1. [Index](#index)
@@ -307,3 +307,5 @@ class SearchableListStateModel extends ChangeNotifier {
 [provider]: https://github.com/rrousselGit/provider
 [riverpod]: https://github.com/rrousselGit/river_pod
 [inheritedwidget]: https://api.flutter.dev/flutter/widgets/InheritedWidget-class.html
+[article1]: https://medium.com/@SamMarrs/sandstone-yet-another-state-management-solution-8fd2691c8e5c
+[article2]: https://medium.com/@SamMarrs/5a5da9cdbf44
