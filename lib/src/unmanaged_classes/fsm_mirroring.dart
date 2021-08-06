@@ -1,5 +1,3 @@
-
-
 import 'dart:collection';
 
 import 'package:sandstone/src/unmanaged_classes/StateValue.dart';

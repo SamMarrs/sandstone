@@ -1,5 +1,20 @@
 part of '../StateManager.dart';
 
+enum FSMEventIDs {
+	TRANSITION_IGNORED,
+	TRANSITION_PROCESS_STARTED,
+	STATE_TRANSITION_STARTED,
+	MIRRORED_STATE_TRANSITION_STARTED,
+	FF_MIRRORED_TRANSITION_STARTED,
+	VALID_STATE_NOT_FOUND,
+	STATE_CHANGED,
+	BUFFER_PURGED,
+	RUNNING_TRANSITION_ACTIONS,
+	PROPAGATING_STATE_CHANGES,
+	RUNNING_STATE_ACTIONS,
+	TRANSITION_PROCESS_ENDED,
+}
+
 /// Only use for testing purposes.
 class Testable {
 
@@ -9,9 +24,6 @@ class Testable {
 	}): _stateGraph = stateGraph,
 		_manager = manager;
 
-	final StateManager _manager;
-	bool containsTransition(StateTransition transition) => _manager._stateTransitions.contains(transition);
-	UnmodifiableListView<StateTransition> getTransitionQueue() => UnmodifiableListView(_manager._transitionBuffer);
 	// TODO: add something for emitting information about an active transition
 	// emit:
 	// 1. active transition
@@ -24,6 +36,13 @@ class Testable {
 
 	// TODO: add something for emitting which transitions were ignored.
 
+	StreamController<Tuple2<FSMEventIDs, DebugEventData>> _debugFSMEventStreamController = StreamController.broadcast();
+	Stream<Tuple2<FSMEventIDs, DebugEventData>> get debugFSMEventStream => _debugFSMEventStreamController.stream;
+
+
+	final StateManager _manager;
+	bool containsTransition(StateTransition transition) => _manager._stateTransitions.contains(transition);
+	UnmodifiableListView<StateTransition> getTransitionQueue() => UnmodifiableListView(_manager._transitionBuffer);
 
 	final _StateGraph _stateGraph;
 	StateTuple? createAState( int hash ) => StateTuple._fromHash(
@@ -42,15 +61,15 @@ class Testable {
 		}
 		return null;
 	}
-	HashMap<StateTransition, StateTuple>? getAdjacentStates(StateTuple state) {
+	HashMap<Transition, StateTuple>? getAdjacentStates(StateTuple state) {
 		if (state._manager == _manager) {
 			return _stateGraph._validStates[state];
 		}
 	}
 
-	static Map<BooleanStateValue, bool>? findDifferenceBetweenStates(StateTuple stateA, StateTuple stateB) {
+	static Map<StateValue, bool>? findDifferenceBetweenStates(StateTuple stateA, StateTuple stateB) {
 		if (stateA._manager == stateB._manager) {
-			Map<BooleanStateValue, bool> diff = {};
+			Map<StateValue, bool> diff = {};
 			stateA._valueReferences.forEach(
 				(managedValue) {
 					if (stateA._values[managedValue._position] != stateB._values[managedValue._position]) {
@@ -63,4 +82,8 @@ class Testable {
 	}
 
 
+
+	void dispose() {
+		_debugFSMEventStreamController.close();
+	}
 }

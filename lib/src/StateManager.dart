@@ -4,25 +4,24 @@ import 'dart:developer' as Developer;
 import 'dart:math' as Math;
 
 import 'package:flutter/widgets.dart';
-import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
-import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
 
 import 'configurations/StateValidationLogic.dart';
-import 'unmanaged_classes/Transition.dart';
-import 'utilities/Utils.dart';
-
-import 'unmanaged_classes/StateTransition.dart';
-
-
 import 'fsm_testing/FSMTests.dart';
+import 'fsm_testing/event_data/DebugEventData.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
 import 'unmanaged_classes/StateAction.dart';
+import 'unmanaged_classes/StateTransition.dart';
+import 'unmanaged_classes/StateValue.dart';
+import 'unmanaged_classes/Transition.dart';
+import 'unmanaged_classes/fsm_mirroring.dart';
+import 'utilities/Tuple.dart';
+import 'utilities/Utils.dart';
 
-part 'managed_classes/ManagedValue.dart';
-part 'managed_classes/StateTuple.dart';
-part 'managed_classes/ManagedStateAction.dart';
-part 'managed_classes/StateGraph.dart';
 part 'fsm_testing/Testable.dart';
+part 'managed_classes/ManagedStateAction.dart';
+part 'managed_classes/ManagedValue.dart';
+part 'managed_classes/StateGraph.dart';
+part 'managed_classes/StateTuple.dart';
 
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
 // This shouldn't prevent initialization. It should only be a warning.
@@ -99,6 +98,8 @@ class StateManager {
 		_stateValidationLogic = stateValidationLogic,
 		_addPostTransitionCallback = addPostTransitionCallback;
 
+	// TODO: Add a parameter so that devs can access the Testable stream crontroller prior to graph initialization.
+	// This is so that graph initialization errors can be emitted through the same interface as transition events.
 	/// Attempts to initialize the [StateManager] and will return `null` upon failure.
 	///
 	/// [notifyListeners] is called every time a state changes.
@@ -318,6 +319,7 @@ class StateManager {
 	}
 
 	void dispose() {
+		_testable?.dispose();
 		_disposeCallbacks.forEach((callback) => callback());
 	}
 
