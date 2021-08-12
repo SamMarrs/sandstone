@@ -34,7 +34,7 @@ class StateManager {
 
 	late final _StateGraph _stateGraph;
 
-	late final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions;
+	late final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions = LinkedHashMap();
 
 	final HashSet<Transition> _stateTransitions = HashSet();
 	final HashSet<MirroredTransition> _mirroredTransitions = HashSet();

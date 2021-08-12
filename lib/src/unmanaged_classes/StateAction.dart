@@ -7,7 +7,7 @@ class StateAction {
 	final String name;
 
 	// TODO: Should this be replaced with a function that returns true/false?
-	/// Defines during which states, this [StateAction] will run.
+	/// Defines during which states this [StateAction] will run.
 	final Map<StateValue, bool> registeredStateValues;
 
 	/// Defines an action to run.
