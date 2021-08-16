@@ -10,5 +10,5 @@ class FFMirroredTransitionStarted extends DebugEventData {
 	FFMirroredTransitionStarted({
 		required Iterable<MirroredTransition> transitionBufferIterable
 	}): transitionBuffer = UnmodifiableListView([...transitionBufferIterable]),
-		super(message: '');
+		super(message: 'Fast forwarding the state with all of the buffered mirrored transitions.');
 }

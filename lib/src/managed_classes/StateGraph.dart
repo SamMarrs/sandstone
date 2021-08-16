@@ -278,10 +278,6 @@ class _StateGraph {
 	}
 
 	void changeState(StateTuple newState) {
-		if (_manager._showDebugLogs) {
-			Developer.log(newState.toString());
-		}
-
 		_currentState = newState;
 		newState._valueReferences.forEach(
 			(managedValue) {

@@ -9,6 +9,6 @@ class StateTransitionStarted extends DebugEventData {
 	StateTransitionStarted({
 		required this.transition,
 		required this.currentState
-	}): super(message: '');
+	}): super(message: 'Processing transition "${transition.name}".');
 
 }

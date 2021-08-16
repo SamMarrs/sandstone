@@ -8,13 +8,13 @@ class BufferPurged extends DebugEventData {
 	final UnmodifiableListView<StateTransition> purgedTransitions;
 	final StateTuple previousState;
 	final StateTuple nextState;
-	final StateTransition activeTransition;
+	final StateTransition? activeTransition;
 
 	BufferPurged({
 		required Iterable<StateTransition> purgedTransitions,
 		required this.previousState,
 		required this.nextState,
-		required this.activeTransition
+		this.activeTransition
 	}): this.purgedTransitions = UnmodifiableListView([...purgedTransitions]),
-		super(message: '');
+		super(message: 'Buffer purged of ${purgedTransitions.length} transitions.');
 }

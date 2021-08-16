@@ -1,20 +1,5 @@
 part of '../StateManager.dart';
 
-enum FSMEventIDs {
-	TRANSITION_IGNORED,
-	TRANSITION_PROCESS_STARTED,
-	STATE_TRANSITION_STARTED,
-	MIRRORED_STATE_TRANSITION_STARTED,
-	FF_MIRRORED_TRANSITION_STARTED,
-	VALID_STATE_NOT_FOUND,
-	STATE_CHANGED,
-	BUFFER_PURGED,
-	RUNNING_TRANSITION_ACTIONS,
-	PROPAGATING_STATE_CHANGES,
-	RUNNING_STATE_ACTIONS,
-	TRANSITION_PROCESS_ENDED,
-}
-
 /// Only use for testing purposes.
 class Testable {
 
@@ -36,8 +21,14 @@ class Testable {
 
 	// TODO: add something for emitting which transitions were ignored.
 
-	StreamController<Tuple2<FSMEventIDs, DebugEventData>> _debugFSMEventStreamController = StreamController.broadcast();
-	Stream<Tuple2<FSMEventIDs, DebugEventData>> get debugFSMEventStream => _debugFSMEventStreamController.stream;
+	late final StreamController<Tuple2<FSMEventIDs, DebugEventData>>? _debugFSMEventStreamController;
+	Stream<Tuple2<FSMEventIDs, DebugEventData>> get debugFSMEventStream {
+		if (_debugFSMEventStreamController == null) {
+			_debugFSMEventStreamController = StreamController.broadcast();
+		}
+		return _debugFSMEventStreamController!.stream;
+	}
+	bool get _debugFSMEventStreamEnabled => _debugFSMEventStreamController != null;
 
 
 	final StateManager _manager;
@@ -84,6 +75,6 @@ class Testable {
 
 
 	void dispose() {
-		_debugFSMEventStreamController.close();
+		_debugFSMEventStreamController?.close();
 	}
 }

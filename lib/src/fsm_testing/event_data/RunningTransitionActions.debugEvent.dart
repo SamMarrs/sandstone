@@ -6,5 +6,5 @@ class RunningTransitionActions extends DebugEventData {
 
 	RunningTransitionActions({
 		required this.transition
-	}): super(message: '');
+	}): super(message: 'Running transition action "${transition.name}".');
 }

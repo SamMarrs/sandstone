@@ -9,6 +9,6 @@ class MirroredTransitionStarted extends DebugEventData {
 	MirroredTransitionStarted({
 		required this.transition,
 		required this.currentState,
-	}): super(message: '');
+	}): super(message: 'Processing mirrored transition "${transition.name}".');
 
 }

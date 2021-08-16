@@ -5,6 +5,9 @@ import '../../utilities/Tuple.dart';
 import 'DebugEventData.dart';
 
 class RunningStateActions extends DebugEventData {
+	// TODO: The state value index should probably be replaced with an actual StateValue.
+	// If StateValue is used, it needs to be the same object as the developer provided to the constructor of StateManager.
+	// <action name, <state value index, should run>>
 	late final UnmodifiableMapView<String, UnmodifiableMapView<int, bool>> actions;
 	final StateTuple currentState;
 
