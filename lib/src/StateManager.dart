@@ -134,6 +134,7 @@ class StateManager {
 		bool optimisticTransitions = false,
 		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX,
 		void Function(void Function())? addPostTransitionCallback,
+		void Function(Testable testable)? getTestable,
 	}) {
 		StateManager bsm = StateManager._(
 			notifyListener: notifyListeners,
@@ -321,6 +322,9 @@ class StateManager {
 		if (!initializeStateActions(bsm, stateActions, bsm._stateGraph)) return null;
 
 		initializeMirroredFSMCallbacks(bsm, mirroredFSMs);
+
+		if (getTestable != null) getTestable(bsm.testable);
+
 		bsm._doActions();
 		return bsm;
 	}
