@@ -27,7 +27,7 @@ part 'managed_classes/ManagedValue.dart';
 part 'managed_classes/StateGraph.dart';
 part 'managed_classes/StateTuple.dart';
 
-// TODO: Add a parameter so that devs can access the Testable stream crontroller prior to graph initialization.
+// TODO: Add a parameter so that devs can access the debug stream crontroller prior to graph initialization.
 // This is so that graph initialization errors can be emitted through the same interface as transition events.
 
 // TODO: Test for no duplicate actions. ie: registeredStateValues should be unique.
@@ -93,7 +93,16 @@ class StateManager {
 		}
 		return _testable!;
 	}
-	bool get _eventStreamActive => _testable != null && (_testable?._debugFSMEventStreamEnabled?? false);
+
+	StreamController<Tuple2<FSMEventIDs, DebugEventData>>? _debugEventStreamController;
+	Stream<Tuple2<FSMEventIDs, DebugEventData>> get debugEventStream {
+		if (_debugEventStreamController == null) {
+			_debugEventStreamController = StreamController.broadcast();
+		}
+		return _debugEventStreamController!.stream;
+	}
+
+
 
 	StateManager._({
 		required void Function() notifyListener,
@@ -134,7 +143,7 @@ class StateManager {
 		bool optimisticTransitions = false,
 		StateValidationLogic stateValidationLogic = StateValidationLogic.canChangeToX,
 		void Function(void Function())? addPostTransitionCallback,
-		void Function(Testable testable)? getTestable,
+		void Function(Stream<Tuple2<FSMEventIDs, DebugEventData>> debugEventStream)? getDebugEventStream,
 	}) {
 		StateManager bsm = StateManager._(
 			notifyListener: notifyListeners,
@@ -142,6 +151,7 @@ class StateManager {
 			optimisticTransitions: optimisticTransitions,
 			stateValidationLogic: stateValidationLogic
 		);
+		if (getDebugEventStream != null) getDebugEventStream(bsm.debugEventStream);
 
 		// Returns true or false based on success.
 		bool initializeStateTransitions(
@@ -323,14 +333,13 @@ class StateManager {
 
 		initializeMirroredFSMCallbacks(bsm, mirroredFSMs);
 
-		if (getTestable != null) getTestable(bsm.testable);
-
 		bsm._doActions();
 		return bsm;
 	}
 
 	void dispose() {
 		_testable?.dispose();
+		_debugEventStreamController?.close();
 		_disposeCallbacks.forEach((callback) => callback());
 	}
 
@@ -366,8 +375,8 @@ class StateManager {
 	) {
 		if (!_transitionsPaused) {
 			_queueTransition(transition, clearQueue: clearQueue, jumpQueue: jumpQueue);
-		} else if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
+		} else {
+			_debugEventStreamController?.add(
 				Tuple2(
 					FSMEventIDs.TRANSITION_IGNORED,
 					TransitionIgnored(
@@ -386,18 +395,16 @@ class StateManager {
 	void _queueMirroredTransition(MirroredTransition transition) {
 		assert(_stateTransitions.contains(transition), 'Unknown mirrored transition: "${transition.name}".');
 		if (!_stateTransitions.contains(transition)) {
-			if (_eventStreamActive) {
-				_testable!._debugFSMEventStreamController!.add(
-					Tuple2(
-						FSMEventIDs.TRANSITION_IGNORED,
-						TransitionIgnored(
-							currentState: _stateGraph._currentState,
-							transition: transition,
-							isUnknownTransition: true
-						)
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.TRANSITION_IGNORED,
+					TransitionIgnored(
+						currentState: _stateGraph._currentState,
+						transition: transition,
+						isUnknownTransition: true
 					)
-				);
-			}
+				)
+			);
 			return;
 		}
 		if (_transitionsPaused) {
@@ -405,19 +412,17 @@ class StateManager {
 		}
 		if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
 			assert(!(transition is MirroredTransition));
-			if (_eventStreamActive) {
-				_testable!._debugFSMEventStreamController!.add(
-					Tuple2(
-						FSMEventIDs.TRANSITION_IGNORED,
-						TransitionIgnored(
-							currentState: _stateGraph._currentState,
-							transition: transition,
-							willNotSucceed: true
-						)
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.TRANSITION_IGNORED,
+					TransitionIgnored(
+						currentState: _stateGraph._currentState,
+						transition: transition,
+						willNotSucceed: true
 					)
-				);
-				// Developer.log('Ignoring mirrored transition "${transition.name}" because it does not transition to a valid state.');
-			}
+				)
+			);
+			// Developer.log('Ignoring mirrored transition "${transition.name}" because it does not transition to a valid state.');
 			return;
 		}
 		if (
@@ -425,19 +430,17 @@ class StateManager {
 			&& _mirroredTransitionBuffer.isNotEmpty
 			&& _mirroredTransitionBuffer.last == transition
 		) {
-			if (_eventStreamActive) {
-				_testable!._debugFSMEventStreamController!.add(
-					Tuple2(
-						FSMEventIDs.TRANSITION_IGNORED,
-						TransitionIgnored(
-							currentState: _stateGraph._currentState,
-							transition: transition,
-							ignoredBecauseOfDuplicate: true
-						)
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.TRANSITION_IGNORED,
+					TransitionIgnored(
+						currentState: _stateGraph._currentState,
+						transition: transition,
+						ignoredBecauseOfDuplicate: true
 					)
-				);
-				// Developer.log('Ignoring mirrored transition "${transition.name}" because ignoreDuplicate is set.');
-			}
+				)
+			);
+			// Developer.log('Ignoring mirrored transition "${transition.name}" because ignoreDuplicate is set.');
 			return;
 		}
 
@@ -464,35 +467,31 @@ class StateManager {
 		} else {
 			assert(_stateTransitions.contains(transition), 'Unknown transition.');
 			if (!_stateTransitions.contains(transition)) {
-				if (_eventStreamActive) {
-					_testable!._debugFSMEventStreamController!.add(
-						Tuple2(
-							FSMEventIDs.TRANSITION_IGNORED,
-							TransitionIgnored(
-								currentState: _stateGraph._currentState,
-								transition: transition,
-								isUnknownTransition: true
-							)
+				_debugEventStreamController?.add(
+					Tuple2(
+						FSMEventIDs.TRANSITION_IGNORED,
+						TransitionIgnored(
+							currentState: _stateGraph._currentState,
+							transition: transition,
+							isUnknownTransition: true
 						)
-					);
-				}
+					)
+				);
 				return;
 			}
 			// Check if transition is possible. Ignore if not.
 			if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
-				if (_eventStreamActive) {
-					_testable!._debugFSMEventStreamController!.add(
-						Tuple2(
-							FSMEventIDs.TRANSITION_IGNORED,
-							TransitionIgnored(
-								currentState: _stateGraph._currentState,
-								transition: transition,
-								willNotSucceed: true
-							)
+				_debugEventStreamController?.add(
+					Tuple2(
+						FSMEventIDs.TRANSITION_IGNORED,
+						TransitionIgnored(
+							currentState: _stateGraph._currentState,
+							transition: transition,
+							willNotSucceed: true
 						)
-					);
-					// Developer.log('Ignoring transition "${transition.name}" because it does not transition to a valid state.');
-				}
+					)
+				);
+				// Developer.log('Ignoring transition "${transition.name}" because it does not transition to a valid state.');
 				return;
 			}
 			if (
@@ -503,19 +502,17 @@ class StateManager {
 					|| ( (!(jumpQueue?? false)) && _transitionBuffer.last == transition )
 				)
 			) {
-				if (_eventStreamActive) {
-					_testable!._debugFSMEventStreamController!.add(
-						Tuple2(
-							FSMEventIDs.TRANSITION_IGNORED,
-							TransitionIgnored(
-								currentState: _stateGraph._currentState,
-								transition: transition,
-								ignoredBecauseOfDuplicate: true
-							)
+				_debugEventStreamController?.add(
+					Tuple2(
+						FSMEventIDs.TRANSITION_IGNORED,
+						TransitionIgnored(
+							currentState: _stateGraph._currentState,
+							transition: transition,
+							ignoredBecauseOfDuplicate: true
 						)
-					);
-					// Developer.log('Ignoring transition "${transition.name}" because ignoreDuplicate is set.');
-				}
+					)
+				);
+				// Developer.log('Ignoring transition "${transition.name}" because ignoreDuplicate is set.');
 				return;
 			}
 			if ((jumpQueue?? false)) {
@@ -535,18 +532,16 @@ class StateManager {
 		Transition? transition
 	}) {
 		_stateGraph.changeState(nextState);
-		if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
-				Tuple2(
-					FSMEventIDs.STATE_CHANGED,
-					StateChanged(
-						previousState: previousState,
-						nextState: nextState,
-						transition: transition
-					)
+		_debugEventStreamController?.add(
+			Tuple2(
+				FSMEventIDs.STATE_CHANGED,
+				StateChanged(
+					previousState: previousState,
+					nextState: nextState,
+					transition: transition
 				)
-			);
-		}
+			)
+		);
 	}
 
 	void _purgeQueue({
@@ -561,7 +556,7 @@ class StateManager {
 				// If these null checks fails, it is a mistake in the implantation.
 				// Checks during initialization of the manager should guarantee these.
 				bool shouldFilter = !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
-				if (shouldFilter && _eventStreamActive) {
+				if (shouldFilter && _debugEventStreamController != null) {
 					purgedTransitions.add(queuedTransition);
 				}
 				return shouldFilter;
@@ -571,26 +566,24 @@ class StateManager {
 		_transitionBuffer.forEachEntry(
 			(entry) {
 				if (entry.element.ignoreDuplicates && entry.previousEntry() != null && entry.element == entry.previousEntry()!.element) {
-					if (_eventStreamActive) {
+					if (_debugEventStreamController != null) {
 						purgedTransitions.add(entry.element);
 					}
 					entry.remove();
 				}
 			}
 		);
-		if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
-				Tuple2(
-					FSMEventIDs.BUFFER_PURGED,
-					BufferPurged(
-						previousState: previousState,
-						nextState: nextState,
-						purgedTransitions: purgedTransitions,
-						activeTransition: activeTransition
-					)
+		_debugEventStreamController?.add(
+			Tuple2(
+				FSMEventIDs.BUFFER_PURGED,
+				BufferPurged(
+					previousState: previousState,
+					nextState: nextState,
+					purgedTransitions: purgedTransitions,
+					activeTransition: activeTransition
 				)
-			);
-		}
+			)
+		);
 	}
 
 	_runTransitionAction({
@@ -604,30 +597,26 @@ class StateManager {
 				diff = StateTuple._findDifference(previousState, nextState);
 				diff.removeWhere((key, value) => transition.stateChanges.containsKey(key));
 			}
-			if (_eventStreamActive) {
-				_testable!._debugFSMEventStreamController!.add(
-					Tuple2(
-						FSMEventIDs.RUNNING_TRANSITION_ACTIONS,
-						RunningTransitionActions(
-							transition: transition
-						)
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.RUNNING_TRANSITION_ACTIONS,
+					RunningTransitionActions(
+						transition: transition
 					)
-				);
-				// Developer.log('Running transition action "${transition.name}".');
-			}
+				)
+			);
+			// Developer.log('Running transition action "${transition.name}".');
 			transition.action!(this, diff);
 		}
 	}
 
 	void _propagateStateChanges() {
-		if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
-				Tuple2(
-					FSMEventIDs.PROPAGATING_STATE_CHANGES,
-					PropagatingStateChanges()
-				)
-			);
-		}
+		_debugEventStreamController?.add(
+			Tuple2(
+				FSMEventIDs.PROPAGATING_STATE_CHANGES,
+				PropagatingStateChanges()
+			)
+		);
 		_notifyListeners();
 	}
 
@@ -658,14 +647,14 @@ class StateManager {
 	}
 
 	void _doActions() {
-		if (_eventStreamActive) {
+		if (_debugEventStreamController != null) {
 			List<Tuple2<String, Map<int, bool>>> actions = [];
 			_managedStateActions[_stateGraph._currentState]?.forEach(
 				(action) {
 					actions.add(Tuple2(action.name, action.registeredStateValues));
 				}
 			);
-			_testable!._debugFSMEventStreamController!.add(
+			_debugEventStreamController?.add(
 				Tuple2(
 					FSMEventIDs.RUNNING_STATE_ACTIONS,
 					RunningStateActions(
@@ -687,14 +676,12 @@ class StateManager {
 
 	void _endTransitionProcess() {
 		_performingTransition = false;
-		if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
-				Tuple2(
-					FSMEventIDs.TRANSITION_PROCESS_ENDED,
-					TransitionProcessEnded()
-				)
-			);
-		}
+		_debugEventStreamController?.add(
+			Tuple2(
+				FSMEventIDs.TRANSITION_PROCESS_ENDED,
+				TransitionProcessEnded()
+			)
+		);
 		_queueTransition(null);
 	}
 
@@ -702,17 +689,15 @@ class StateManager {
 		StateTuple currentState = _stateGraph._currentState;
 		StateTuple? nextState = currentState;
 		// fast forward the state by applying all of the buffered transitions.
-		if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
-				Tuple2(
-					FSMEventIDs.FF_MIRRORED_TRANSITION_STARTED,
-					FFMirroredTransitionStarted(
-						transitionBufferIterable: _mirroredTransitionBuffer
-					)
+		_debugEventStreamController?.add(
+			Tuple2(
+				FSMEventIDs.FF_MIRRORED_TRANSITION_STARTED,
+				FFMirroredTransitionStarted(
+					transitionBufferIterable: _mirroredTransitionBuffer
 				)
-			);
-			// Developer.log('Fast forwarding the state with all of the buffered mirrored transitions.');
-		}
+			)
+		);
+		// Developer.log('Fast forwarding the state with all of the buffered mirrored transitions.');
 		_mirroredTransitionBuffer.forEach(
 			(mirroredTransition) {
 				// This assertion should never fail if StateGraph is initialized properly.
@@ -761,14 +746,12 @@ class StateManager {
 
 		_performingTransition = true;
 
-		if (_eventStreamActive) {
-			_testable!._debugFSMEventStreamController!.add(
-				Tuple2(
-					FSMEventIDs.TRANSITION_PROCESS_STARTED,
-					TransitionProcessStarted()
-				)
-			);
-		}
+		_debugEventStreamController?.add(
+			Tuple2(
+				FSMEventIDs.TRANSITION_PROCESS_STARTED,
+				TransitionProcessStarted()
+			)
+		);
 
 		if (_mirroredTransitionBuffer.isNotEmpty && _routeIsolationOccurred) {
 			_routeIsolationOccurred = false;
@@ -780,32 +763,27 @@ class StateManager {
 		StateTransition? stateTransition;
 		if (_mirroredTransitionBuffer.isNotEmpty) {
 			mirroredTransition = _mirroredTransitionBuffer.removeFirst();
-			if (_eventStreamActive) {
-				_testable!._debugFSMEventStreamController!.add(
-					Tuple2(
-						FSMEventIDs.MIRRORED_STATE_TRANSITION_STARTED,
-						MirroredTransitionStarted(
-							transition: mirroredTransition,
-							currentState: currentState
-						)
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.MIRRORED_STATE_TRANSITION_STARTED,
+					MirroredTransitionStarted(
+						transition: mirroredTransition,
+						currentState: currentState
 					)
-				);
-				// Developer.log('Processing mirrored transition "${mirroredTransition.name}".');
-			}
+				)
+			);
 		} else {
 			stateTransition = _transitionBuffer.removeFirst();
-			if (_eventStreamActive) {
-				_testable!._debugFSMEventStreamController!.add(
-					Tuple2(
-						FSMEventIDs.STATE_TRANSITION_STARTED,
-						StateTransitionStarted(
-							transition: stateTransition,
-							currentState: currentState
-						)
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.STATE_TRANSITION_STARTED,
+					StateTransitionStarted(
+						transition: stateTransition,
+						currentState: currentState
 					)
-				);
-				// Developer.log('Processing transition "${stateTransition.name}".');
-			}
+				)
+			);
+			// Developer.log('Processing transition "${stateTransition.name}".');
 		}
 
 		// If these null checks fails, it is a mistake in the implementation.

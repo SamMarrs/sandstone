@@ -21,16 +21,6 @@ class Testable {
 
 	// TODO: add something for emitting which transitions were ignored.
 
-	late final StreamController<Tuple2<FSMEventIDs, DebugEventData>>? _debugFSMEventStreamController;
-	Stream<Tuple2<FSMEventIDs, DebugEventData>> get debugFSMEventStream {
-		if (_debugFSMEventStreamController == null) {
-			_debugFSMEventStreamController = StreamController.broadcast();
-		}
-		return _debugFSMEventStreamController!.stream;
-	}
-	bool get _debugFSMEventStreamEnabled => _debugFSMEventStreamController != null;
-
-
 	final StateManager _manager;
 	bool containsTransition(StateTransition transition) => _manager._stateTransitions.contains(transition);
 	UnmodifiableListView<StateTransition> getTransitionQueue() => UnmodifiableListView(_manager._transitionBuffer);
@@ -74,7 +64,5 @@ class Testable {
 
 
 
-	void dispose() {
-		_debugFSMEventStreamController?.close();
-	}
+	void dispose() { }
 }
