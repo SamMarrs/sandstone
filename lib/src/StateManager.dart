@@ -35,6 +35,12 @@ part 'managed_classes/StateTuple.dart';
 
 // TODO: If possible, check for infinite state change cycle, where the state changes indefinitely without user input.
 
+// TODO: Let the inital value be defined outside of the managedValues constructor parameter.
+
+// TODO: Create a tool for defining the state validation functions (and possibly the trasition and action assignment map).
+// Validate(manager).and(state1)..and(state2).or(state3) -> state1 && (state2 || state3)
+// .every([]), .any([]), .only(), .notAnd(), .notOr(), etc.
+
 /// Creates and manages a finite state machine.
 class StateManager {
 	final void Function() _notifyListeners;
