@@ -80,6 +80,11 @@ class StateTuple {
 		return diff;
 	}
 
+	/// Get the boolean value represented by the provided [StateValue] within this [StateTuple].
+	///
+	/// If the provided [StateValue] does not exists within this [StateTuple], then `null` will be returned.
+	bool? getValue(StateValue value) => _manager.getFromState(this, value);
+
 	int? _hashCode;
 	/// hashCode of [StateTuple] must follow a few rules.
 	///

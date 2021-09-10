@@ -10,3 +10,5 @@ export 'TransitionIgnored.debugEvent.dart';
 export 'TransitionProcessEnded.debugEvent.dart';
 export 'TransitionProcessStarted.debugEvent.dart';
 export 'ValidStateNotFound.debugEvent.dart';
+export 'UnknownStateValue.debugEvent.dart';
+export 'UnknownStateTuple.debugEvent.dart';

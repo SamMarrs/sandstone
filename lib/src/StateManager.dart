@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:sandstone/main.dart';
 import 'package:sandstone/src/fsm_testing/event_data/MirroredStateTransitionStarted.debugEvent.dart';
 import 'package:sandstone/src/fsm_testing/event_data/TransitionIgnored.debugEvent.dart';
+import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
 
 import 'configurations/StateValidationLogic.dart';
 import 'fsm_testing/FSMEventIDs.dart';
@@ -26,6 +27,7 @@ part 'managed_classes/ManagedStateAction.dart';
 part 'managed_classes/ManagedValue.dart';
 part 'managed_classes/StateGraph.dart';
 part 'managed_classes/StateTuple.dart';
+part 'utilities/validation/Validator.dart';
 
 // TODO: Add a parameter so that devs can access the debug stream crontroller prior to graph initialization.
 // This is so that graph initialization errors can be emitted through the same interface as transition events.
@@ -38,7 +40,7 @@ part 'managed_classes/StateTuple.dart';
 // TODO: Let the inital value be defined outside of the managedValues constructor parameter.
 
 // TODO: Create a tool for defining the state validation functions (and possibly the trasition and action assignment map).
-// Validate(manager).and(state1)..and(state2).or(state3) -> state1 && (state2 || state3)
+// Validate(manager).and(state1)..and(state2).or(state3) -> (state1 && state2) || state3
 // .every([]), .any([]), .only(), .notAnd(), .notOr(), etc.
 
 /// Creates and manages a finite state machine.
@@ -352,8 +354,30 @@ class StateManager {
 	/// Returns the specified state value within the provided [StateTuple], given that [value] has been registered with this [StateManager].
 	bool? getFromState(StateTuple stateTuple, StateValue value) {
 		assert(stateTuple._manager == this, 'StateTuple must be from the same state manager.');
+		if (stateTuple._manager != this) {
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.UNKNOWN_STATE_TUPLE,
+					UnknownStateTuple(
+						stateTuple: stateTuple
+					)
+				)
+			);
+			return null;
+		}
 		assert(_managedValues.containsKey(value), 'StateValue must have been registered with this state manager.');
-		if (stateTuple._manager != this || !_managedValues.containsKey(value)) return null;
+		if (!_managedValues.containsKey(value)) {
+			_debugEventStreamController?.add(
+				Tuple2(
+					FSMEventIDs.UNKNOWN_STATE_VALUE,
+					UnknownStateValue(
+						stateTuple: stateTuple,
+						stateValue: value
+					)
+				)
+			);
+			return null;
+		}
 		// Performed null check in previous if statement.
 		return stateTuple._values[_managedValues[value]!._position];
 	}
