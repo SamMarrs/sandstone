@@ -3,7 +3,8 @@
     "language": "en",
     "words": [
         "FSMs",
-		"Shortcircuit"
+        "mockito",
+        "Shortcircuit"
     ],
     "flagWords": []
 }

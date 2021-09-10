@@ -3,7 +3,9 @@ import 'dart:collection';
 import 'package:sandstone/src/StateManager.dart';
 import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
 
-abstract class Operator {}
+abstract class Operator {
+	const Operator();
+}
 
 /// Used to declare a [StateValue] within a [Validator].
 ///
@@ -12,7 +14,7 @@ class Value extends Operator {
 	final StateValue value;
 	final StateTuple? altState;
 
-	Value(this.value, {this.altState});
+	const Value(this.value, {this.altState});
 }
 
 /// ANDs all child values together.
