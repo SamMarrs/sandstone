@@ -91,13 +91,7 @@ class Validator {
 	}
 
 	List<bool>? _valuesFromState() {
-		UnmodifiableListView<ManagedValue> valueReferences = ist.valueReferences;
-		List<StateValue> stateValues = valueReferences.map(
-			(e) {
-				InternalManagedValue imv = InternalManagedValue(e);
-				return imv.stateValue;
-			}
-		).toList(growable: false);
+		List<StateValue> stateValues = ist.valueReferences.map((e) => InternalManagedValue(e).stateValue).toList(growable: false);
 		List<bool> values = [];
 		for (int i = 0; i < stateValues.length; i++) {
 			bool? value = state.getValue(stateValues[i]);
@@ -138,6 +132,9 @@ class Validator {
 	}
 
 	bool? _only(Op.Only validator) {
+		if (validator.values.isEmpty) {
+			return null;
+		}
 		List<bool> includedBoolValues = [];
 		HashSet<StateValue> includedStateValues = HashSet();
 		StateTuple state = validator.altState == null ? this.state : validator.altState!;
