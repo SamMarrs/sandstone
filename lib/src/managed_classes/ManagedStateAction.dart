@@ -1,7 +1,16 @@
-part of '../StateManager.dart';
 
 
-class _ManagedStateAction {
+import 'dart:collection';
+
+import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/fsm_testing/FSMTests.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
+import 'package:sandstone/src/unmanaged_classes/StateAction.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+import 'package:sandstone/src/utilities/Utils.dart';
+
+class ManagedStateAction {
 	final String name;
 
 	/// A map of _ManagedValue indices to a value for that _ManagedValue.
@@ -12,13 +21,13 @@ class _ManagedStateAction {
 	final void Function(StateManager manager) action;
 
 
-	_ManagedStateAction({
+	ManagedStateAction({
 		required this.registeredStateValues,
 		required this.action,
 		required this.name,
 	});
 
-	static _ManagedStateAction? create({
+	static ManagedStateAction? create({
 		required LinkedHashMap<StateValue, ManagedValue> managedValues,
 		required StateAction stateAction
 	}) {
@@ -32,7 +41,7 @@ class _ManagedStateAction {
 			if (!managedValues.containsKey(entries[i].key)) return null;
 			rStateValues[InternalManagedValue(managedValues[entries[i].key]!).position] = entries[i].value;
 		}
-		return _ManagedStateAction(
+		return ManagedStateAction(
 			registeredStateValues: rStateValues,
 			action: stateAction.action,
 			name: stateAction.name,

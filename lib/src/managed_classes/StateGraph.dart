@@ -1,40 +1,52 @@
-part of '../StateManager.dart';
 
-class _StateGraph {
-	final LinkedHashMap<StateValue, ManagedValue> _managedValues;
+import 'dart:collection';
+
+import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/configurations/StateValidationLogic.dart';
+import 'package:sandstone/src/fsm_testing/FSMTests.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
+import 'package:sandstone/src/unmanaged_classes/BooleanStateValue.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+import 'package:sandstone/src/unmanaged_classes/Transition.dart';
+import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
+import 'package:sandstone/src/utilities/Utils.dart';
+
+class StateGraph {
+	final LinkedHashMap<StateValue, ManagedValue> managedValues;
 
 	// TODO: The underlying HashMap creates far more buckets than it needs to.
 	// 512 for 224 elements.
 	// This map never changes after initialization of the state manager, so a sparse map may be possible.
-	final HashMap<StateTuple, HashMap<Transition, StateTuple>> _validStates;
+	final HashMap<StateTuple, HashMap<Transition, StateTuple>> validStates;
 
-	StateTuple _currentState;
+	StateTuple currentState;
 
-	final StateManager _manager;
+	final StateManager manager;
 
-	_StateGraph._({
+	StateGraph._({
 		required LinkedHashMap<StateValue, ManagedValue> managedValues,
 		required HashMap<StateTuple, HashMap<Transition, StateTuple>> validStates,
 		required StateTuple currentState,
 		required StateManager manager
-	}): _managedValues = managedValues,
-		_validStates = validStates,
-		_currentState = currentState,
-		_manager = manager;
+	}): managedValues = managedValues,
+		validStates = validStates,
+		currentState = currentState,
+		manager = manager;
 
-	static _StateGraph? create({
+	static StateGraph? create({
 		required StateManager manager,
 		required HashSet<Transition> stateTransitions,
 		required LinkedHashMap<StateValue, ManagedValue> unmanagedToManagedValues
 	}) {
 
-		HashMap<StateTuple, HashMap<Transition, StateTuple>>? validStates = _StateGraph._buildAdjacencyList(
+		HashMap<StateTuple, HashMap<Transition, StateTuple>>? validStates = StateGraph._buildAdjacencyList(
 			managedValues: unmanagedToManagedValues,
 			manager: manager,
 			stateTransitions: stateTransitions
 		);
 		StateTuple currentState = InternalStateTuple.fromMap(unmanagedToManagedValues, manager);
-		return validStates == null ? null : _StateGraph._(
+		return validStates == null ? null : StateGraph._(
 			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
 			currentState: currentState,
@@ -71,7 +83,7 @@ class _StateGraph {
 			// [[int, bool]]
 			// Find all values that are allowed to changes. This excluded changes to mirrored values.
 			List<List<dynamic>> possibleChanges = [];
-			manager._managedValues.forEach(
+			InternalStateManager(manager).managedValues.forEach(
 				(sv, mv) {
 					InternalManagedValue imv = InternalManagedValue(mv);
 					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(imv.position)) {
@@ -82,6 +94,7 @@ class _StateGraph {
 
 			bool isValid(StateTuple nextState) {
 				InternalStateTuple ns = InternalStateTuple(nextState);
+				InternalStateManager ism = InternalStateManager(manager);
 				bool _isValid = ns.valueReferences.every(
 					(managedValue) {
 						InternalManagedValue imv = InternalManagedValue(managedValue);
@@ -93,7 +106,7 @@ class _StateGraph {
 								(imv.stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
 								|| (
 									(imv.stateValue as BooleanStateValue).stateValidationLogic == null
-									&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+									&& ism.stateValidationLogic == StateValidationLogic.canChangeToX
 								)
 							)
 							&& newValue != oldValue
@@ -103,7 +116,7 @@ class _StateGraph {
 						return true;
 					}
 				);
-				return _isValid && manager._canBeXStates.every(
+				return _isValid && ism.canBeXStates.every(
 					(stateValue) => InternalManagedValue(stateValue).isValid(currentState, nextState)
 				);
 			}
@@ -144,7 +157,7 @@ class _StateGraph {
 				if (diff == 0) {
 					changes.addAll(requiredChanges);
 					int hash = mapToInt(currentState, changes);
-					StateTuple? nextState = InternalStateTuple.fromHash(manager._managedValues, manager, hash);
+					StateTuple? nextState = InternalStateTuple.fromHash(InternalStateManager(manager).managedValues, manager, hash);
 					// If this fails, it probably is an implementation mistake.
 					assert(nextState != null);
 					if (nextState != null && isValid(nextState)) {
@@ -184,7 +197,7 @@ class _StateGraph {
 				usedTransitions.add(transition);
 				adjacencyList[state]![transition] = nextState;
 				if (!adjacencyList.containsKey(nextState)) {
-					if (manager._optimisticTransitions) {
+					if (InternalStateManager(manager).optimisticTransitions) {
 						optimisticFindNextState(nextState);
 					} else {
 						conservativeFindNextState(nextState);
@@ -251,7 +264,7 @@ class _StateGraph {
 									(imv.stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
 									|| (
 										(imv.stateValue as BooleanStateValue).stateValidationLogic == null
-										&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+										&& InternalStateManager(manager).stateValidationLogic == StateValidationLogic.canChangeToX
 									)
 								)
 								&& newValue != s.values[imv.position]
@@ -261,7 +274,7 @@ class _StateGraph {
 							return true;
 						}
 					);
-					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
+					transitionIsValid = transitionIsValid && InternalStateManager(manager).canBeXStates.every(
 						(stateValue) => InternalManagedValue(stateValue).isValid(state, nextState)
 					);
 
@@ -276,7 +289,7 @@ class _StateGraph {
 			);
 		};
 
-		if (manager._optimisticTransitions) {
+		if (InternalStateManager(manager).optimisticTransitions) {
 			optimisticFindNextState(initialState);
 		} else {
 			conservativeFindNextState(initialState);
@@ -287,7 +300,7 @@ class _StateGraph {
 
 	void changeState(StateTuple newState) {
 		InternalStateTuple ns = InternalStateTuple(newState);
-		_currentState = newState;
+		currentState = newState;
 		ns.valueReferences.forEach(
 			(managedValue) {
 				InternalManagedValue imv = InternalManagedValue(managedValue);

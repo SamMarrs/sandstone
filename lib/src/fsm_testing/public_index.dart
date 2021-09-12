@@ -1,2 +1,2 @@
 export './FSMEventIDs.dart';
-// export './Testable.dart';
+export './Testable.dart' hide InternalTestable;

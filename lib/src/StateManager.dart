@@ -3,10 +3,13 @@ import 'dart:collection';
 import 'dart:developer' as Developer;
 
 import 'package:flutter/widgets.dart';
+import 'package:sandstone/src/fsm_testing/Testable.dart';
 import 'package:sandstone/src/fsm_testing/event_data/MirroredStateTransitionStarted.debugEvent.dart';
 import 'package:sandstone/src/fsm_testing/event_data/TransitionIgnored.debugEvent.dart';
 import 'package:sandstone/src/fsm_testing/event_data/public_index.dart';
 import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/managed_classes/ManagedStateAction.dart';
+import 'package:sandstone/src/managed_classes/StateGraph.dart';
 import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
 
 import 'configurations/StateValidationLogic.dart';
@@ -21,11 +24,7 @@ import 'unmanaged_classes/StateValue.dart';
 import 'unmanaged_classes/Transition.dart';
 import 'unmanaged_classes/fsm_mirroring.dart';
 import 'utilities/Tuple.dart';
-import 'utilities/Utils.dart';
 
-part 'fsm_testing/Testable.dart';
-part 'managed_classes/ManagedStateAction.dart';
-part 'managed_classes/StateGraph.dart';
 part 'utilities/validation/Validator.dart';
 
 // TODO: Add a parameter so that devs can access the debug stream crontroller prior to graph initialization.
@@ -47,9 +46,9 @@ class InternalStateManager {
 
 	void Function() get notifyListeners => sm._notifyListeners;
 
-	_StateGraph get stateGraph => sm._stateGraph;
+	StateGraph get stateGraph => sm._stateGraph;
 
-	LinkedHashMap<StateTuple, List<_ManagedStateAction>> get managedStateActions => sm._managedStateActions;
+	LinkedHashMap<StateTuple, List<ManagedStateAction>> get managedStateActions => sm._managedStateActions;
 
 	HashSet<Transition> get stateTransitions => sm._stateTransitions;
 	HashSet<MirroredTransition> get mirroredTransitions => sm._mirroredTransitions;
@@ -63,7 +62,7 @@ class InternalStateManager {
 	StateValidationLogic get stateValidationLogic => sm._stateValidationLogic;
 	void Function(void Function())? get addPostTransitionCallback => sm._addPostTransitionCallback;
 
-
+	DoubleLinkedQueue<StateTransition> get transitionBuffer => sm._transitionBuffer;
 
 }
 
@@ -71,9 +70,9 @@ class InternalStateManager {
 class StateManager {
 	final void Function() _notifyListeners;
 
-	late final _StateGraph _stateGraph;
+	late final StateGraph _stateGraph;
 
-	late final LinkedHashMap<StateTuple, List<_ManagedStateAction>> _managedStateActions = LinkedHashMap();
+	late final LinkedHashMap<StateTuple, List<ManagedStateAction>> _managedStateActions = LinkedHashMap();
 
 	final HashSet<Transition> _stateTransitions = HashSet();
 	final HashSet<MirroredTransition> _mirroredTransitions = HashSet();
@@ -118,7 +117,7 @@ class StateManager {
 	Testable? _testable;
 	Testable get testable {
 		if (_testable == null) {
-			_testable = Testable._(
+			_testable = InternalTestable.create(
 				stateGraph: _stateGraph,
 				manager: this
 			);
@@ -274,7 +273,7 @@ class StateManager {
 			HashSet<Transition> stateTransitions,
 			LinkedHashMap<StateValue, ManagedValue> managedValues
 		) {
-			_StateGraph? stateGraph = _StateGraph.create(
+			StateGraph? stateGraph = StateGraph.create(
 				manager: manager,
 				stateTransitions: stateTransitions,
 				unmanagedToManagedValues: managedValues
@@ -289,7 +288,7 @@ class StateManager {
 		bool initializeStateActions(
 			StateManager manager,
 			List<StateAction>? stateActions,
-			_StateGraph stateGraph
+			StateGraph stateGraph
 		) {
 			HashSet<StateAction> actionsThatMayRun = HashSet();
 			bool stateActionError = false;
@@ -297,15 +296,15 @@ class StateManager {
 				stateActions.forEach(
 					(action) {
 						if (
-							FSMTests.checkIfAllActionStateValuesRegistered(action, stateGraph._managedValues)
+							FSMTests.checkIfAllActionStateValuesRegistered(action, stateGraph.managedValues)
 						) {
-							_ManagedStateAction? msa = _ManagedStateAction.create(
-								managedValues: stateGraph._managedValues,
+							ManagedStateAction? msa = ManagedStateAction.create(
+								managedValues: stateGraph.managedValues,
 								stateAction: action
 							);
 							assert(msa != null);
 							if (msa != null) {
-								stateGraph._validStates.forEach(
+								stateGraph.validStates.forEach(
 									(state, _) {
 										if (msa.shouldRun(state)) {
 											actionsThatMayRun.add(action);
@@ -435,7 +434,7 @@ class StateManager {
 				Tuple2(
 					FSMEventIDs.TRANSITION_IGNORED,
 					TransitionIgnored(
-						currentState: _stateGraph._currentState,
+						currentState: _stateGraph.currentState,
 						transition: transition,
 						ignoredBecausePaused: true
 					)
@@ -454,7 +453,7 @@ class StateManager {
 				Tuple2(
 					FSMEventIDs.TRANSITION_IGNORED,
 					TransitionIgnored(
-						currentState: _stateGraph._currentState,
+						currentState: _stateGraph.currentState,
 						transition: transition,
 						isUnknownTransition: true
 					)
@@ -465,13 +464,13 @@ class StateManager {
 		if (_transitionsPaused) {
 			_routeIsolationOccurred = true;
 		}
-		if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
+		if (!_stateGraph.validStates[_stateGraph.currentState]!.containsKey(transition)) {
 			assert(!(transition is MirroredTransition));
 			_debugEventStreamController?.add(
 				Tuple2(
 					FSMEventIDs.TRANSITION_IGNORED,
 					TransitionIgnored(
-						currentState: _stateGraph._currentState,
+						currentState: _stateGraph.currentState,
 						transition: transition,
 						willNotSucceed: true
 					)
@@ -489,7 +488,7 @@ class StateManager {
 				Tuple2(
 					FSMEventIDs.TRANSITION_IGNORED,
 					TransitionIgnored(
-						currentState: _stateGraph._currentState,
+						currentState: _stateGraph.currentState,
 						transition: transition,
 						ignoredBecauseOfDuplicate: true
 					)
@@ -526,7 +525,7 @@ class StateManager {
 					Tuple2(
 						FSMEventIDs.TRANSITION_IGNORED,
 						TransitionIgnored(
-							currentState: _stateGraph._currentState,
+							currentState: _stateGraph.currentState,
 							transition: transition,
 							isUnknownTransition: true
 						)
@@ -535,12 +534,12 @@ class StateManager {
 				return;
 			}
 			// Check if transition is possible. Ignore if not.
-			if (!_stateGraph._validStates[_stateGraph._currentState]!.containsKey(transition)) {
+			if (!_stateGraph.validStates[_stateGraph.currentState]!.containsKey(transition)) {
 				_debugEventStreamController?.add(
 					Tuple2(
 						FSMEventIDs.TRANSITION_IGNORED,
 						TransitionIgnored(
-							currentState: _stateGraph._currentState,
+							currentState: _stateGraph.currentState,
 							transition: transition,
 							willNotSucceed: true
 						)
@@ -561,7 +560,7 @@ class StateManager {
 					Tuple2(
 						FSMEventIDs.TRANSITION_IGNORED,
 						TransitionIgnored(
-							currentState: _stateGraph._currentState,
+							currentState: _stateGraph.currentState,
 							transition: transition,
 							ignoredBecauseOfDuplicate: true
 						)
@@ -610,7 +609,7 @@ class StateManager {
 			(queuedTransition) {
 				// If these null checks fails, it is a mistake in the implantation.
 				// Checks during initialization of the manager should guarantee these.
-				bool shouldFilter = !_stateGraph._validStates[nextState]!.containsKey(queuedTransition);
+				bool shouldFilter = !_stateGraph.validStates[nextState]!.containsKey(queuedTransition);
 				if (shouldFilter && _debugEventStreamController != null) {
 					purgedTransitions.add(queuedTransition);
 				}
@@ -704,7 +703,7 @@ class StateManager {
 	void _doActions() {
 		if (_debugEventStreamController != null) {
 			List<Tuple2<String, Map<int, bool>>> actions = [];
-			_managedStateActions[_stateGraph._currentState]?.forEach(
+			_managedStateActions[_stateGraph.currentState]?.forEach(
 				(action) {
 					actions.add(Tuple2(action.name, action.registeredStateValues));
 				}
@@ -713,13 +712,13 @@ class StateManager {
 				Tuple2(
 					FSMEventIDs.RUNNING_STATE_ACTIONS,
 					RunningStateActions(
-						currentState: _stateGraph._currentState,
+						currentState: _stateGraph.currentState,
 						actions: actions
 					)
 				)
 			);
 		}
-		_managedStateActions[_stateGraph._currentState]?.forEach(
+		_managedStateActions[_stateGraph.currentState]?.forEach(
 			(action) {
 				// if (_showDebugLogs) {
 				// 	Developer.log('Running action "${action.name}".');
@@ -741,7 +740,7 @@ class StateManager {
 	}
 
 	void _processRouteIsolationMirrorBuffer() {
-		StateTuple currentState = _stateGraph._currentState;
+		StateTuple currentState = _stateGraph.currentState;
 		StateTuple? nextState = currentState;
 		// fast forward the state by applying all of the buffered transitions.
 		_debugEventStreamController?.add(
@@ -757,8 +756,8 @@ class StateManager {
 			(mirroredTransition) {
 				// This assertion should never fail if StateGraph is initialized properly.
 				// TODO: create error event for this assert statement
-				assert(_stateGraph._validStates[nextState]!.containsKey(mirroredTransition));
-				nextState = _stateGraph._validStates[nextState]![mirroredTransition];
+				assert(_stateGraph.validStates[nextState]!.containsKey(mirroredTransition));
+				nextState = _stateGraph.validStates[nextState]![mirroredTransition];
 			}
 		);
 		_mirroredTransitionBuffer.clear();
@@ -813,7 +812,7 @@ class StateManager {
 			return _processRouteIsolationMirrorBuffer();
 		}
 
-		StateTuple currentState = _stateGraph._currentState;
+		StateTuple currentState = _stateGraph.currentState;
 		MirroredTransition? mirroredTransition;
 		StateTransition? stateTransition;
 		if (_mirroredTransitionBuffer.isNotEmpty) {
@@ -843,7 +842,7 @@ class StateManager {
 
 		// If these null checks fails, it is a mistake in the implementation.
 		// Checks during initialization of the manager should guarantee these.
-		StateTuple? nextState = _stateGraph._validStates[currentState]![stateTransition?? mirroredTransition];
+		StateTuple? nextState = _stateGraph.validStates[currentState]![stateTransition?? mirroredTransition];
 		// Check if transition is possible given the current state. Ignore if not.
 		if (nextState == null) {
 			_endTransitionProcess();
