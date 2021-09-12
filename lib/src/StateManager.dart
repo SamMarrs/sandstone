@@ -10,7 +10,6 @@ import 'package:sandstone/src/fsm_testing/event_data/public_index.dart';
 import 'package:sandstone/src/managed_classes/ManagedValue.dart';
 import 'package:sandstone/src/managed_classes/ManagedStateAction.dart';
 import 'package:sandstone/src/managed_classes/StateGraph.dart';
-import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
 
 import 'configurations/StateValidationLogic.dart';
 import 'fsm_testing/FSMEventIDs.dart';
@@ -24,8 +23,6 @@ import 'unmanaged_classes/StateValue.dart';
 import 'unmanaged_classes/Transition.dart';
 import 'unmanaged_classes/fsm_mirroring.dart';
 import 'utilities/Tuple.dart';
-
-part 'utilities/validation/Validator.dart';
 
 // TODO: Add a parameter so that devs can access the debug stream crontroller prior to graph initialization.
 // This is so that graph initialization errors can be emitted through the same interface as transition events.

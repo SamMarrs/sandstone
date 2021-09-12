@@ -1,4 +1,13 @@
-part of '../../StateManager.dart';
+import 'dart:collection';
+
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
+
+class InternalValidator {
+
+}
 
 /// Used to define a boolean as a function of the provided state, [StateTuple].
 class Validator {
