@@ -3,9 +3,10 @@ import 'dart:collection';
 import 'dart:developer' as Developer;
 
 import 'package:flutter/widgets.dart';
-import 'package:sandstone/main.dart';
 import 'package:sandstone/src/fsm_testing/event_data/MirroredStateTransitionStarted.debugEvent.dart';
 import 'package:sandstone/src/fsm_testing/event_data/TransitionIgnored.debugEvent.dart';
+import 'package:sandstone/src/fsm_testing/event_data/public_index.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
 import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
 
 import 'configurations/StateValidationLogic.dart';
@@ -24,7 +25,6 @@ import 'utilities/Utils.dart';
 
 part 'fsm_testing/Testable.dart';
 part 'managed_classes/ManagedStateAction.dart';
-part 'managed_classes/ManagedValue.dart';
 part 'managed_classes/StateGraph.dart';
 part 'utilities/validation/Validator.dart';
 
@@ -235,12 +235,12 @@ class StateManager {
 		) {
 			int i = 0;
 			for (i = 0; i < managedValues.length; i++) {
-				manager._managedValues[managedValues[i]] = ManagedValue._(
+				manager._managedValues[managedValues[i]] = InternalManagedValue.create(
 					managedValue: managedValues[i],
 					position: i,
 					manager: manager
 				);
-				StateValue sv = manager._managedValues[managedValues[i]]!._stateValue;
+				StateValue sv = InternalManagedValue(manager._managedValues[managedValues[i]]!).stateValue;
 				if (
 					sv is BooleanStateValue
 					&& sv.stateValidationLogic == StateValidationLogic.canBeX
@@ -258,7 +258,7 @@ class StateManager {
 				(fsm) {
 					int j = 0;
 					for (; j < fsm.states.length; j++) {
-						manager._managedValues[fsm.states[j]] = ManagedValue._(
+						manager._managedValues[fsm.states[j]] = InternalManagedValue.create(
 							managedValue: fsm.states[j],
 							position: i + j,
 							manager: manager
@@ -404,7 +404,7 @@ class StateManager {
 			return null;
 		}
 		// Performed null check in previous if statement.
-		return st.values[_managedValues[value]!._position];
+		return st.values[InternalManagedValue(_managedValues[value]!).position];
 	}
 
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();

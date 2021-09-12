@@ -65,7 +65,7 @@ class _StateGraph {
 			transition.stateChanges.forEach(
 				(key, value) {
 					assert(managedValues[key] != null);
-					requiredChanges[managedValues[key]!._position] = value;
+					requiredChanges[InternalManagedValue(managedValues[key]!).position] = value;
 				}
 			);
 			// [[int, bool]]
@@ -73,8 +73,9 @@ class _StateGraph {
 			List<List<dynamic>> possibleChanges = [];
 			manager._managedValues.forEach(
 				(sv, mv) {
-					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(mv._position)) {
-						possibleChanges.add([mv._position, cs.values[mv._position]]);
+					InternalManagedValue imv = InternalManagedValue(mv);
+					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(imv.position)) {
+						possibleChanges.add([imv.position, cs.values[imv.position]]);
 					}
 				}
 			);
@@ -83,26 +84,27 @@ class _StateGraph {
 				InternalStateTuple ns = InternalStateTuple(nextState);
 				bool _isValid = ns.valueReferences.every(
 					(managedValue) {
-						bool newValue = ns.values[managedValue._position];
-						bool oldValue = cs.values[managedValue._position];
+						InternalManagedValue imv = InternalManagedValue(managedValue);
+						bool newValue = ns.values[imv.position];
+						bool oldValue = cs.values[imv.position];
 						if (
-							managedValue._stateValue is BooleanStateValue
+							imv.stateValue is BooleanStateValue
 							&& (
-								(managedValue._stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
+								(imv.stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
 								|| (
-									(managedValue._stateValue as BooleanStateValue).stateValidationLogic == null
+									(imv.stateValue as BooleanStateValue).stateValidationLogic == null
 									&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
 								)
 							)
 							&& newValue != oldValue
 						) {
-							return managedValue._canChange(currentState, nextState);
+							return imv.canChange(currentState, nextState);
 						}
 						return true;
 					}
 				);
 				return _isValid && manager._canBeXStates.every(
-					(stateValue) => stateValue._isValid(currentState, nextState)
+					(stateValue) => InternalManagedValue(stateValue).isValid(currentState, nextState)
 				);
 			}
 			int mapToInt(StateTuple baseState, Map<int, bool> changes) {
@@ -110,10 +112,11 @@ class _StateGraph {
 				LinkedHashMap<int, bool> newHash = LinkedHashMap();
 				bs.valueReferences.forEach(
 					(mv) {
-						if (changes.containsKey(mv._position)) {
-							newHash[mv._position] = changes[mv._position]!;
+						InternalManagedValue imv = InternalManagedValue(mv);
+						if (changes.containsKey(imv.position)) {
+							newHash[imv.position] = changes[imv.position]!;
 						} else {
-							newHash[mv._position] = bs.values[mv._position];
+							newHash[imv.position] = bs.values[imv.position];
 						}
 					}
 				);
@@ -230,7 +233,7 @@ class _StateGraph {
 					transition.stateChanges.forEach(
 						(key, value) {
 							assert(managedValues[key] != null);
-							updates[managedValues[key]!._position] = value;
+							updates[InternalManagedValue(managedValues[key]!).position] = value;
 						}
 					);
 					StateTuple nextState = InternalStateTuple.fromState(state, updates);
@@ -241,24 +244,25 @@ class _StateGraph {
 							bool newValue = element.value;
 							assert(managedValues[key] != null);
 							ManagedValue managedValue = managedValues[key]!;
+							InternalManagedValue imv = InternalManagedValue(managedValue);
 							if (
-								managedValue._stateValue is BooleanStateValue
+								imv.stateValue is BooleanStateValue
 								&& (
-									(managedValue._stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
+									(imv.stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
 									|| (
-										(managedValue._stateValue as BooleanStateValue).stateValidationLogic == null
+										(imv.stateValue as BooleanStateValue).stateValidationLogic == null
 										&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
 									)
 								)
-								&& newValue != s.values[managedValue._position]
+								&& newValue != s.values[imv.position]
 							) {
-								return managedValue._canChange(state, nextState);
+								return imv.canChange(state, nextState);
 							}
 							return true;
 						}
 					);
 					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
-						(stateValue) => stateValue._isValid(state, nextState)
+						(stateValue) => InternalManagedValue(stateValue).isValid(state, nextState)
 					);
 
 					if (transitionIsValid) {
@@ -286,7 +290,8 @@ class _StateGraph {
 		_currentState = newState;
 		ns.valueReferences.forEach(
 			(managedValue) {
-				managedValue._value = ns.values[managedValue._position];
+				InternalManagedValue imv = InternalManagedValue(managedValue);
+				imv.value = ns.values[imv.position];
 			}
 		);
 	}

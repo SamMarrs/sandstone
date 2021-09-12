@@ -60,8 +60,9 @@ class Testable {
 			Map<StateValue, bool> diff = {};
 			sA.valueReferences.forEach(
 				(managedValue) {
-					if (sA.values[managedValue._position] != sB.values[managedValue._position]) {
-						diff[managedValue._stateValue] = sB.values[managedValue._position];
+					InternalManagedValue imv = InternalManagedValue(managedValue);
+					if (sA.values[imv.position] != sB.values[imv.position]) {
+						diff[imv.stateValue] = sB.values[imv.position];
 					}
 				}
 			);

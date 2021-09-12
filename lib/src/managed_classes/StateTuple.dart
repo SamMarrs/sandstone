@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:math' as Math;
 
 import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
 import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
 
 class InternalStateTuple {

@@ -30,7 +30,7 @@ class _ManagedStateAction {
 		for (int i = 0; i < entries.length; i++) {
 			assert(managedValues.containsKey(entries[i].key));
 			if (!managedValues.containsKey(entries[i].key)) return null;
-			rStateValues[managedValues[entries[i].key]!._position] = entries[i].value;
+			rStateValues[InternalManagedValue(managedValues[entries[i].key]!).position] = entries[i].value;
 		}
 		return _ManagedStateAction(
 			registeredStateValues: rStateValues,
