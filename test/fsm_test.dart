@@ -1,10 +1,9 @@
 // import 'package:flutter_test/flutter_test.dart';
 
-// import 'package:fsm/main.dart';
-import 'package:test/test.dart';
-import './src/utilities/validation/operators.test.dart' as Op;
+import 'src/utilities/validation/operators.dart' as Op;
+import 'src/utilities/validation/Validator.dart' as Validator;
 
-@TestOn('dart-vm')
 void main() {
 	Op.main();
+	Validator.main();
 }
