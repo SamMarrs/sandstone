@@ -1,10 +1,10 @@
 import 'package:mockito/annotations.dart';
-import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
 import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
 import 'package:sandstone/src/utilities/validation/operators.dart';
 import 'package:test/test.dart';
-import 'operators.test.mocks.dart';
+import 'operators.mocks.dart';
 
 @GenerateMocks([
 	StateValue,

@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import '../../StateManager.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import '../../unmanaged_classes/StateTransition.dart';
 import 'DebugEventData.dart';
 

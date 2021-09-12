@@ -3,12 +3,13 @@ part of '../../StateManager.dart';
 /// Used to define a boolean as a function of the provided state, [StateTuple].
 class Validator {
 	final StateTuple state;
+	final InternalStateTuple ist;
 	final Op.Operator validator;
 
 	Validator(
 		this.state,
 		this.validator
-	);
+	): ist = InternalStateTuple(state);
 
 	/// Evaluates this [Validator].
 	///
@@ -81,7 +82,8 @@ class Validator {
 	}
 
 	List<bool>? _valuesFromState() {
-		List<StateValue>? stateValues = state._valueReferences.map((e) => e._stateValue).toList(growable: false);
+		UnmodifiableListView<ManagedValue> valueReferences = ist.valueReferences;
+		List<StateValue> stateValues = valueReferences.map((e) => e._stateValue).toList(growable: false);
 		List<bool> values = [];
 		for (int i = 0; i < stateValues.length; i++) {
 			bool? value = state.getValue(stateValues[i]);
@@ -103,7 +105,7 @@ class Validator {
 			}
 			boolValues.add(value);
 		}
-		return boolValues;
+		return boolValues.isEmpty ? null : boolValues;
 	}
 
 	bool? _every(Op.Every validator) {
@@ -136,8 +138,9 @@ class Validator {
 		bool result = includedBoolValues.every((element) => element == validator.validValue);
 
 		if (result) {
-			for (int i = 0; i < state._values.length; i++) {
-				StateValue sv = state._valueReferences[i]._stateValue;
+			InternalStateTuple ist = InternalStateTuple(state);
+			for (int i = 0; i < ist.values.length; i++) {
+				StateValue sv = ist.valueReferences[i]._stateValue;
 				// Null case for state.getValue(sv) should never happen.
 				if (!includedBoolValues.contains(sv) && state.getValue(sv) == validator.validValue) {
 					return false;

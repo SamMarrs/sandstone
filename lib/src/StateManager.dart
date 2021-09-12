@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:developer' as Developer;
-import 'dart:math' as Math;
 
 import 'package:flutter/widgets.dart';
 import 'package:sandstone/main.dart';
@@ -13,6 +12,7 @@ import 'configurations/StateValidationLogic.dart';
 import 'fsm_testing/FSMEventIDs.dart';
 import 'fsm_testing/FSMTests.dart';
 import 'fsm_testing/event_data/DebugEventData.dart';
+import 'managed_classes/StateTuple.dart';
 import 'unmanaged_classes/BooleanStateValue.dart';
 import 'unmanaged_classes/StateAction.dart';
 import 'unmanaged_classes/StateTransition.dart';
@@ -26,7 +26,6 @@ part 'fsm_testing/Testable.dart';
 part 'managed_classes/ManagedStateAction.dart';
 part 'managed_classes/ManagedValue.dart';
 part 'managed_classes/StateGraph.dart';
-part 'managed_classes/StateTuple.dart';
 part 'utilities/validation/Validator.dart';
 
 // TODO: Add a parameter so that devs can access the debug stream crontroller prior to graph initialization.
@@ -40,6 +39,33 @@ part 'utilities/validation/Validator.dart';
 // TODO: Let the inital value be defined outside of the managedValues constructor parameter.
 
 // TODO: Force the state validation functions to use the new Validator class.
+
+class InternalStateManager {
+	final StateManager sm;
+
+	InternalStateManager(this.sm);
+
+	void Function() get notifyListeners => sm._notifyListeners;
+
+	_StateGraph get stateGraph => sm._stateGraph;
+
+	LinkedHashMap<StateTuple, List<_ManagedStateAction>> get managedStateActions => sm._managedStateActions;
+
+	HashSet<Transition> get stateTransitions => sm._stateTransitions;
+	HashSet<MirroredTransition> get mirroredTransitions => sm._mirroredTransitions;
+
+	HashSet<ManagedValue> get mirroredStates => sm._mirroredStates;
+	HashSet<ManagedValue> get canBeXStates => sm._canBeXStates;
+	LinkedHashMap<StateValue, ManagedValue> get managedValues => sm._managedValues;
+
+	bool get showDebugLogs => sm._showDebugLogs;
+	bool get optimisticTransitions => sm._optimisticTransitions;
+	StateValidationLogic get stateValidationLogic => sm._stateValidationLogic;
+	void Function(void Function())? get addPostTransitionCallback => sm._addPostTransitionCallback;
+
+
+
+}
 
 /// Creates and manages a finite state machine.
 class StateManager {
@@ -351,8 +377,9 @@ class StateManager {
 
 	/// Returns the specified state value within the provided [StateTuple], given that [value] has been registered with this [StateManager].
 	bool? getFromState(StateTuple stateTuple, StateValue value) {
-		assert(stateTuple._manager == this, 'StateTuple must be from the same state manager.');
-		if (stateTuple._manager != this) {
+		InternalStateTuple st = InternalStateTuple(stateTuple);
+		assert(st.manager == this, 'StateTuple must be from the same state manager.');
+		if (st.manager != this) {
 			_debugEventStreamController?.add(
 				Tuple2(
 					FSMEventIDs.UNKNOWN_STATE_TUPLE,
@@ -377,7 +404,7 @@ class StateManager {
 			return null;
 		}
 		// Performed null check in previous if statement.
-		return stateTuple._values[_managedValues[value]!._position];
+		return st.values[_managedValues[value]!._position];
 	}
 
 	DoubleLinkedQueue<StateTransition> _transitionBuffer = DoubleLinkedQueue();
@@ -622,7 +649,7 @@ class StateManager {
 		if (transition.action != null) {
 			Map<StateValue, bool> diff = {};
 			if (_optimisticTransitions) {
-				diff = StateTuple._findDifference(previousState, nextState);
+				diff = InternalStateTuple.findDifference(previousState, nextState);
 				diff.removeWhere((key, value) => transition.stateChanges.containsKey(key));
 			}
 			_debugEventStreamController?.add(

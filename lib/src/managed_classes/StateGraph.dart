@@ -33,7 +33,7 @@ class _StateGraph {
 			manager: manager,
 			stateTransitions: stateTransitions
 		);
-		StateTuple currentState = StateTuple._fromMap(unmanagedToManagedValues, manager);
+		StateTuple currentState = InternalStateTuple.fromMap(unmanagedToManagedValues, manager);
 		return validStates == null ? null : _StateGraph._(
 			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
@@ -47,7 +47,7 @@ class _StateGraph {
 		required StateManager manager,
 		required HashSet<Transition> stateTransitions,
 	}) {
-		StateTuple initialState = StateTuple._fromMap(managedValues, manager);
+		StateTuple initialState = InternalStateTuple.fromMap(managedValues, manager);
 		HashMap<StateTuple, HashMap<Transition, StateTuple>> adjacencyList = HashMap();
 		HashSet<Transition> usedTransitions = HashSet();
 		bool failedMirroredTransition = false;
@@ -60,6 +60,7 @@ class _StateGraph {
 			StateTuple currentState,
 			Transition transition,
 		) {
+			InternalStateTuple cs = InternalStateTuple(currentState);
 			Map<int, bool> requiredChanges = {};
 			transition.stateChanges.forEach(
 				(key, value) {
@@ -73,16 +74,17 @@ class _StateGraph {
 			manager._managedValues.forEach(
 				(sv, mv) {
 					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(mv._position)) {
-						possibleChanges.add([mv._position, currentState._values[mv._position]]);
+						possibleChanges.add([mv._position, cs.values[mv._position]]);
 					}
 				}
 			);
 
 			bool isValid(StateTuple nextState) {
-				bool _isValid = nextState._valueReferences.every(
+				InternalStateTuple ns = InternalStateTuple(nextState);
+				bool _isValid = ns.valueReferences.every(
 					(managedValue) {
-						bool newValue = nextState._values[managedValue._position];
-						bool oldValue = currentState._values[managedValue._position];
+						bool newValue = ns.values[managedValue._position];
+						bool oldValue = cs.values[managedValue._position];
 						if (
 							managedValue._stateValue is BooleanStateValue
 							&& (
@@ -104,13 +106,14 @@ class _StateGraph {
 				);
 			}
 			int mapToInt(StateTuple baseState, Map<int, bool> changes) {
+				InternalStateTuple bs = InternalStateTuple(baseState);
 				LinkedHashMap<int, bool> newHash = LinkedHashMap();
-				baseState._valueReferences.forEach(
+				bs.valueReferences.forEach(
 					(mv) {
 						if (changes.containsKey(mv._position)) {
 							newHash[mv._position] = changes[mv._position]!;
 						} else {
-							newHash[mv._position] = baseState._values[mv._position];
+							newHash[mv._position] = bs.values[mv._position];
 						}
 					}
 				);
@@ -138,7 +141,7 @@ class _StateGraph {
 				if (diff == 0) {
 					changes.addAll(requiredChanges);
 					int hash = mapToInt(currentState, changes);
-					StateTuple? nextState = StateTuple._fromHash(manager._managedValues, manager, hash);
+					StateTuple? nextState = InternalStateTuple.fromHash(manager._managedValues, manager, hash);
 					// If this fails, it probably is an implementation mistake.
 					assert(nextState != null);
 					if (nextState != null && isValid(nextState)) {
@@ -212,6 +215,7 @@ class _StateGraph {
 		};
 
 		conservativeFindNextState = (StateTuple state) {
+			InternalStateTuple s = InternalStateTuple(state);
 			if (adjacencyList.containsKey(state)) {
 				// This state has already been visited.
 				return;
@@ -229,7 +233,7 @@ class _StateGraph {
 							updates[managedValues[key]!._position] = value;
 						}
 					);
-					StateTuple nextState = StateTuple._fromState(state, updates);
+					StateTuple nextState = InternalStateTuple.fromState(state, updates);
 
 					bool transitionIsValid = transition.stateChanges.entries.every(
 						(element) {
@@ -246,7 +250,7 @@ class _StateGraph {
 										&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
 									)
 								)
-								&& newValue != state._values[managedValue._position]
+								&& newValue != s.values[managedValue._position]
 							) {
 								return managedValue._canChange(state, nextState);
 							}
@@ -278,10 +282,11 @@ class _StateGraph {
 	}
 
 	void changeState(StateTuple newState) {
+		InternalStateTuple ns = InternalStateTuple(newState);
 		_currentState = newState;
-		newState._valueReferences.forEach(
+		ns.valueReferences.forEach(
 			(managedValue) {
-				managedValue._value = newState._values[managedValue._position];
+				managedValue._value = ns.values[managedValue._position];
 			}
 		);
 	}

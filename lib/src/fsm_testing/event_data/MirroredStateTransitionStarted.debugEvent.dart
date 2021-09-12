@@ -1,4 +1,5 @@
-import '../../StateManager.dart';
+
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import '../../unmanaged_classes/fsm_mirroring.dart';
 import 'DebugEventData.dart';
 

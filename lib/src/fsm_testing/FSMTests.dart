@@ -2,6 +2,7 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import '../unmanaged_classes/StateValue.dart';
 import '../unmanaged_classes/Transition.dart';
 import '../StateManager.dart';
