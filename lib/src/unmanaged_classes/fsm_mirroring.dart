@@ -1,13 +1,36 @@
+import 'dart:async';
 import 'dart:collection';
 
+import 'package:sandstone/src/fsm_testing/FSMEventIDs.dart';
+import 'package:sandstone/src/fsm_testing/event_data/DebugEventData.dart';
+import 'package:sandstone/src/fsm_testing/event_data/FSMMirrorNoUnchangedStateValue.debugEvent.dart';
+import 'package:sandstone/src/fsm_testing/event_data/FSMMirrorReusedStateValue.debugEvent.dart';
+import 'package:sandstone/src/fsm_testing/event_data/FSMMirrorReusedTransition.debugEvent.dart';
 import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+import 'package:sandstone/src/utilities/Tuple.dart';
 
 import '../StateManager.dart';
 import 'Transition.dart';
 
 typedef MirroredStateChangeCallback = void Function(MirroredTransition changes);
 typedef RegisterDisposeCallback = void Function(void Function() callback);
+class InternalFSMMirror {
+	final FSMMirror fsmMirror;
+
+	InternalFSMMirror({
+		required this.fsmMirror
+	});
+
+	validate(
+		StreamController<Tuple2<FSMEventIDs, DebugEventData>> debugEventStreamController
+	) {
+		fsmMirror.debugEvents.forEach(
+			(event) => debugEventStreamController.add(event)
+		);
+	}
+}
+
 class FSMMirror{
 
 	final List<MirroredStateValue> states;
@@ -16,18 +39,28 @@ class FSMMirror{
 
 	late final bool initializedCorrectly;
 
+	late final UnmodifiableListView<Tuple2<FSMEventIDs, DebugEventData>> debugEvents;
+
 	FSMMirror({
 		required this.states,
 		required this.transitions,
 		required this.stateUpdates,
 	}) {
 		bool initializedCorrectly = true;
+		List<Tuple2<FSMEventIDs, DebugEventData>> debugEvents = [];
 
 		bool sameStateMirror() {
 			bool valid = states.every(
 				(state) => state._mirror == null
 			);
-			assert(valid, 'Cannot use MirroredStateValues in multiple instances of FSMMirror');
+			if (!valid) {
+				debugEvents.add(
+					Tuple2(
+						FSMEventIDs.FSM_MIRROR_NO_REUSED_STATE_VALUE,
+						FSMMirrorNoReusedStateValue()
+					)
+				);
+			}
 			return valid;
 		}
 
@@ -35,52 +68,52 @@ class FSMMirror{
 			bool valid = transitions.every(
 				(transition) => transition._mirror == null
 			);
-			assert(valid, 'Cannot use MirroredTransitions in multiple instances of FSMMirror');
-			return valid;
-		}
-
-		bool transitionChangesFromThisMirror() {
-			bool valid = transitions.every(
-				(transition) => transition.stateChanges.keys.every(
-					(stateValue) {
-						if (stateValue is MirroredStateValue) {
-							return states.contains(stateValue);
-						}
-						return true;
-					}
-				)
-			);
-			assert(valid, 'Found MirroredStateValue from different FSMMirror in a MirroredTransition.');
+			if (!valid) {
+				debugEvents.add(
+					Tuple2(
+						FSMEventIDs.FSM_MIRROR_NO_REUSED_TRANSITION,
+						FSMMirrorNoReusedTransition()
+					)
+				);
+			}
 			return valid;
 		}
 
 		bool noUnchangedStateValue() {
-			HashSet<StateValue> affectedStates = HashSet();
+			HashSet<MirroredStateValue> affectedStates = HashSet();
 			transitions.forEach(
 				(transition) {
-					affectedStates.addAll(transition.stateChanges.keys.where((state) => state is MirroredStateValue));
+					affectedStates.addAll(transition.stateChanges.keys);
 				}
 			);
 			bool valid = states.every((state) => affectedStates.contains(state));
-			assert(valid, 'Not every mirrored state is affected by a transition.');
+			if (!valid) {
+				debugEvents.add(
+					Tuple2(
+						FSMEventIDs.FSM_MIRROR_NO_UNCHANGED_STATE_VALUE,
+						FSMMirrorNoUnchangedStateValue()
+					)
+				);
+			}
 			return valid;
 		}
 
-		initializedCorrectly = initializedCorrectly && sameStateMirror();
+		initializedCorrectly = sameStateMirror() && initializedCorrectly;
 		states.forEach(
 			(state) => state._mirror = this
 		);
 
-		initializedCorrectly = initializedCorrectly && sameTransitionMirror();
+		initializedCorrectly = sameTransitionMirror() && initializedCorrectly;
 		transitions.forEach(
 			(transition) => transition._mirror = this
 		);
 
-		initializedCorrectly = initializedCorrectly && transitionChangesFromThisMirror();
-		initializedCorrectly = initializedCorrectly && noUnchangedStateValue();
+		initializedCorrectly = noUnchangedStateValue() && initializedCorrectly;
 
 		this.initializedCorrectly = initializedCorrectly;
+		this.debugEvents = UnmodifiableListView(debugEvents);
 	}
+
 }
 
 class MirroredStateValue implements StateValue {

@@ -327,26 +327,35 @@ class StateManager {
 			return !stateActionError;
 		}
 
-		void initializeMirroredFSMCallbacks(
+		bool initializeMirroredFSMCallbacks(
 			StateManager manager,
 			List<FSMMirror>? mirroredFSMs
 		) {
+			bool allValid = true;
 			mirroredFSMs?.forEach(
 				(mirror) {
-					MirroredStateChangeCallback callback = (transition) {
-						bool sameMirror = transition.mirror == mirror;
-						assert(sameMirror);
-						if (sameMirror) {
-							bsm._queueMirroredTransition(transition);
-						}
-					};
-					RegisterDisposeCallback onDisposeCallback = (callback) {
-						bsm._disposeCallbacks.add(callback);
-					};
+					// Initializing InternalFSMMirror so that it's error events will get pushed to the event stream.
+					if (bsm._debugEventStreamController != null) {
+						InternalFSMMirror(fsmMirror: mirror).validate(bsm._debugEventStreamController!);
+					}
+					allValid = allValid && mirror.initializedCorrectly;
+					if (allValid) {
+						MirroredStateChangeCallback callback = (transition) {
+							bool sameMirror = transition.mirror == mirror;
+							assert(sameMirror);
+							if (sameMirror) {
+								bsm._queueMirroredTransition(transition);
+							}
+						};
+						RegisterDisposeCallback onDisposeCallback = (callback) {
+							bsm._disposeCallbacks.add(callback);
+						};
 
-					mirror.stateUpdates(callback, onDisposeCallback);
+						mirror.stateUpdates(callback, onDisposeCallback);
+					}
 				}
 			);
+			return allValid;
 		}
 
 		if (mirroredFSMs == null ? false : !mirroredFSMs.every((mirror) => mirror.initializedCorrectly)) return null;
@@ -359,7 +368,7 @@ class StateManager {
 
 		if (!initializeStateActions(bsm, stateActions, bsm._stateGraph)) return null;
 
-		initializeMirroredFSMCallbacks(bsm, mirroredFSMs);
+		if (!initializeMirroredFSMCallbacks(bsm, mirroredFSMs)) return null;
 
 		bsm._doActions();
 		return bsm;

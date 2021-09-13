@@ -12,3 +12,7 @@ export 'TransitionProcessStarted.debugEvent.dart';
 export 'ValidStateNotFound.debugEvent.dart';
 export 'UnknownStateValue.debugEvent.dart';
 export 'UnknownStateTuple.debugEvent.dart';
+export 'FFMirroredTransitionStarted.debugEvent.dart';
+export 'FSMMirrorNoUnchangedStateValue.debugEvent.dart';
+export 'FSMMirrorReusedStateValue.debugEvent.dart';
+export 'FSMMirrorReusedTransition.debugEvent.dart';
