@@ -22,7 +22,7 @@ class InternalFSMMirror {
 		required this.fsmMirror
 	});
 
-	validate(
+	void validate(
 		StreamController<Tuple2<FSMEventIDs, DebugEventData>> debugEventStreamController
 	) {
 		fsmMirror.debugEvents.forEach(
