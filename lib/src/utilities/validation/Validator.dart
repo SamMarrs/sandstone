@@ -90,19 +90,6 @@ class Validator {
 		return null;
 	}
 
-	List<bool>? _valuesFromState() {
-		List<StateValue> stateValues = ist.valueReferences.map((e) => InternalManagedValue(e).stateValue).toList(growable: false);
-		List<bool> values = [];
-		for (int i = 0; i < stateValues.length; i++) {
-			bool? value = state.getValue(stateValues[i]);
-			if (value == null) {
-				return null;
-			}
-			values.add(value);
-		}
-
-		return values;
-	}
 
 	List<bool>? _valuesFromValidator(UnmodifiableListView<Op.Operator> values) {
 		List<bool> boolValues = [];
@@ -117,17 +104,17 @@ class Validator {
 	}
 
 	bool? _every(Op.Every validator) {
-		List<bool>? boolValues = validator.values == null ? _valuesFromState() : _valuesFromValidator(validator.values!);
+		List<bool>? boolValues = validator.values == null ? state.getValues() : _valuesFromValidator(validator.values!);
 		return boolValues == null ? null : boolValues.every((element) => element == validator.validValue);
 	}
 
 	bool? _none(Op.None validator) {
-		List<bool>? boolValues = validator.values == null ? _valuesFromState() : _valuesFromValidator(validator.values!);
+		List<bool>? boolValues = validator.values == null ? state.getValues() : _valuesFromValidator(validator.values!);
 		return boolValues == null ? null : boolValues.every((element) => element != validator.invalidValue);
 	}
 
 	bool? _any(Op.Any validator) {
-		List<bool>? boolValues = validator.values == null ? _valuesFromState() : _valuesFromValidator(validator.values!);
+		List<bool>? boolValues = validator.values == null ? state.getValues() : _valuesFromValidator(validator.values!);
 		return boolValues == null ? null : boolValues.any((element) => element == validator.validValue);
 	}
 
@@ -136,11 +123,12 @@ class Validator {
 			return null;
 		}
 		List<bool> includedBoolValues = [];
-		HashSet<StateValue> includedStateValues = HashSet();
+		HashSet<int> includedStateValues = HashSet();
 		StateTuple state = validator.altState == null ? this.state : validator.altState!;
+		UnmodifiableListView<bool> allValues = state.getValues();
 
 		for (int i = 0; i < validator.values.length; i++) {
-			includedStateValues.add(validator.values[i]);
+			includedStateValues.add(i);
 			bool? value = state.getValue(validator.values[i]);
 			if (value == null) return null;
 			includedBoolValues.add(value);
@@ -149,11 +137,8 @@ class Validator {
 		bool result = includedBoolValues.every((element) => element == validator.validValue);
 
 		if (result) {
-			InternalStateTuple ist = InternalStateTuple(state);
-			for (int i = 0; i < ist.values.length; i++) {
-				StateValue sv = InternalManagedValue(ist.valueReferences[i]).stateValue;
-				// Null case for state.getValue(sv) should never happen.
-				if (!includedBoolValues.contains(sv) && state.getValue(sv) == validator.validValue) {
+			for (int i = 0; i < allValues.length; i++) {
+				if (!includedStateValues.contains(i) && allValues[i] == validator.validValue) {
 					return false;
 				}
 			}

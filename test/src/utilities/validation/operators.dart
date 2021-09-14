@@ -122,80 +122,57 @@ void _operatorTests() {
 			);
 		}
 	);
-	group(
-		'Every tests',
-		() {
-			test(
-				'Every is Operator',
-				() {
-					expect(every is Op.Operator, isTrue);
-				}
-			);
-			test(
-				'Every initializes',
-				() {
-					expect(Op.Every(null), isNotNull);
-					expect(Op.Every([_operator]), isNotNull);
-					expect(Op.Every([_operator], validValue: true), isNotNull);
-				}
-			);
-		}
-	);
-	group(
-		'None tests',
-		() {
-			test(
-				'None is Operator',
-				() {
-					expect(none is Op.Operator, isTrue);
-				}
-			);
-			test(
-				'None initializes',
-				() {
-					expect(Op.None(null), isNotNull);
-					expect(Op.None([_operator]), isNotNull);
-					expect(Op.None([_operator], invalidValue: true), isNotNull);
-				}
-			);
-		}
-	);
-	group(
-		'Any tests',
-		() {
-			test(
-				'Any is Operator',
-				() {
-					expect(any is Op.Operator, isTrue);
-				}
-			);
-			test(
-				'Any initializes',
-				() {
-					expect(Op.Any(null), isNotNull);
-					expect(Op.Any([_operator]), isNotNull);
-					expect(Op.Any([_operator], validValue: true), isNotNull);
-				}
-			);
-		}
-	);
-	group(
-		'Only tests',
-		() {
-			test(
-				'Only is Operator',
-				() {
-					expect(only is Op.Operator, isTrue);
-				}
-			);
-			test(
-				'Only initializes',
-				() {
-					expect(Op.Only([stateValue]), isNotNull);
-					expect(Op.Only([stateValue], validValue: true, altState: stateTuple), isNotNull);
-				}
-			);
-		}
-	);
+	group('Every tests', () {
+		test('Every is Operator', () {
+			expect(every is Op.Operator, isTrue);
+		});
+		test('Every initializes', () {
+			Op.Every e1 = Op.Every(null);
+			Op.Every e2 = Op.Every([_operator], validValue: true);
+			expect(e1.values, isNull);
+			expect(e1.validValue, isFalse);
+			expect(e2.validValue, isTrue);
+		});
+	});
+	group('None tests', () {
+		test('None is Operator', () {
+				expect(none is Op.Operator, isTrue);
+		});
+		test('None initializes', () {
+			Op.None n1 = Op.None(null);
+			Op.None n2 = Op.None([_operator], invalidValue: true);
+			expect(n1.values, isNull);
+			expect(n1.invalidValue, isFalse);
+			expect(n2.invalidValue, isTrue);
+		});
+	});
+	group('Any tests', () {
+		test('Any is Operator', () {
+			expect(any is Op.Operator, isTrue);
+		});
+		test('Any initializes', () {
+			Op.Any a1 = Op.Any(null);
+			Op.Any a2 = Op.Any([_operator], validValue: true);
+			expect(a1.values, isNull);
+			expect(a1.validValue, isFalse);
+			expect(a2.validValue, isTrue);
+		});
+	});
+	group('Only tests', () {
+		test('Only is Operator', () {
+			expect(only is Op.Operator, isTrue);
+		});
+		test('Only initializes', () {
+			MockStateTuple altState = MockStateTuple();
+			List<StateValue> values = [stateValue];
+			Op.Only a1 = Op.Only(values);
+			Op.Only a2 = Op.Only(values, altState: altState, validValue: true);
+			expect(a1.values.every((element) => values.contains(element)), isTrue);
+			expect(a1.altState, isNull);
+			expect(a1.validValue, isFalse);
+			expect(a2.altState == altState, isTrue);
+			expect(a2.validValue, isTrue);
+		});
+	});
 }
 

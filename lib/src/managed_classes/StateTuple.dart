@@ -124,6 +124,8 @@ class StateTuple {
 	/// If the provided [StateValue] does not exists within this [StateTuple], then `null` will be returned.
 	bool? getValue(StateValue value) => _manager.getFromState(this, value);
 
+	UnmodifiableListView<bool> getValues() => _values;
+
 	int? _hashCode;
 	/// hashCode of [StateTuple] must follow a few rules.
 	///

@@ -1,8 +1,5 @@
-import 'dart:collection';
 
 import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
-import 'package:sandstone/src/managed_classes/ManagedValue.dart';
 import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
 import 'package:sandstone/src/utilities/validation/Validator.dart';
@@ -10,6 +7,7 @@ import 'package:sandstone/src/utilities/validation/operators.dart' as Op;
 import 'package:sandstone/src/utilities/validation/operators.dart';
 import 'package:test/test.dart';
 import 'Validator.mocks.dart';
+import 'fake_classes.dart';
 
 @GenerateMocks([
 	StateValue,
@@ -38,80 +36,47 @@ void _validatorTests() {
 	group('Validator evaluation tests.', _validatorEvaluationTests);
 }
 
-class _FakeManagedValue extends Fake implements ManagedValue {
-	final _FakeStateValue _stateValue;
-
-	_FakeManagedValue(
-		_FakeStateValue stateValue
-	): _stateValue = stateValue;
-}
-
-class _FakeStateValue extends Fake implements StateValue {
-	final bool? _value;
-	_FakeStateValue(
-		bool? value
-	): _value = value;
-	bool? getValue() => _value;
-}
-
-class _FakeStateTuple extends Fake implements StateTuple {
-	late final UnmodifiableListView<bool> _values;
-	@override
-	late final UnmodifiableListView<_FakeManagedValue> _valueReferences;
-
-	_FakeStateTuple(
-		List<bool> values,
-		List<_FakeManagedValue> valueReferences
-	): _values = UnmodifiableListView(values),
-		_valueReferences = UnmodifiableListView(valueReferences);
-
-	@override
-	bool? getValue(StateValue sv) {
-		bool unknown = !_valueReferences.map((e) => e._stateValue).contains(sv);
-		return unknown ? null : (sv as _FakeStateValue).getValue();
-	}
-}
 
 void _validatorEvaluationTests() {
-	late _FakeStateTuple trueFalseState1;
-	final _FakeStateValue trueValue1 = _FakeStateValue(true);
-	final _FakeStateValue falseValue1 = _FakeStateValue(false);
+	late FakeStateTuple trueFalseState1;
+	final FakeStateValue trueValue1 = FakeStateValue(true);
+	final FakeStateValue falseValue1 = FakeStateValue(false);
 
-	late _FakeStateTuple trueFalseState2;
-	final _FakeStateValue trueValue2 = _FakeStateValue(true);
-	final _FakeStateValue falseValue2 = _FakeStateValue(false);
+	late FakeStateTuple trueFalseState2;
+	final FakeStateValue trueValue2 = FakeStateValue(true);
+	final FakeStateValue falseValue2 = FakeStateValue(false);
 
 
-	late _FakeStateTuple allTrueState;
-	late _FakeStateTuple allFalseState;
+	late FakeStateTuple allTrueState;
+	late FakeStateTuple allFalseState;
 
 	setUp(() {
-		trueFalseState1 = _FakeStateTuple(
+		trueFalseState1 = FakeStateTuple(
 			[true, false],
 			[
-				_FakeManagedValue(trueValue1),
-				_FakeManagedValue(falseValue1)
+				FakeManagedValue(trueValue1),
+				FakeManagedValue(falseValue1)
 			]
 		);
-		trueFalseState2 = _FakeStateTuple(
+		trueFalseState2 = FakeStateTuple(
 			[true, false],
 			[
-				_FakeManagedValue(trueValue2),
-				_FakeManagedValue(falseValue2)
+				FakeManagedValue(trueValue2),
+				FakeManagedValue(falseValue2)
 			]
 		);
-		allTrueState = _FakeStateTuple(
+		allTrueState = FakeStateTuple(
 			[true, true],
 			[
-				_FakeManagedValue(trueValue1),
-				_FakeManagedValue(trueValue2)
+				FakeManagedValue(trueValue1),
+				FakeManagedValue(trueValue2)
 			]
 		);
-		allFalseState = _FakeStateTuple(
+		allFalseState = FakeStateTuple(
 			[false, false],
 			[
-				_FakeManagedValue(falseValue1),
-				_FakeManagedValue(falseValue2)
+				FakeManagedValue(falseValue1),
+				FakeManagedValue(falseValue2)
 			]
 		);
 	});
@@ -339,31 +304,29 @@ void _validatorEvaluationTests() {
 				isNull
 			);
 		});
-		// FIXME: Unable to Mock
-		// Validator._valuesFromState calls InternalStateTuple.valueReferences, which always gets the undefined StateTuple instead of FakeStateTuple
-		// test('Null operator list.', () {
-		// 	expect(
-		// 		Validator(
-		// 			allTrueState,
-		// 			Op.Every(null)
-		// 		).evaluate(),
-		// 		isFalse
-		// 	);
-		// 	expect(
-		// 		Validator(
-		// 			allTrueState,
-		// 			Op.Every(null, validValue: true)
-		// 		).evaluate(),
-		// 		isTrue
-		// 	);
-		// 	expect(
-		// 		Validator(
-		// 			trueFalseState1,
-		// 			Op.Every(null, validValue: true)
-		// 		).evaluate(),
-		// 		isFalse
-		// 	);
-		// });
+		test('Null operator list.', () {
+			expect(
+				Validator(
+					allTrueState,
+					Op.Every(null)
+				).evaluate(),
+				isFalse
+			);
+			expect(
+				Validator(
+					allTrueState,
+					Op.Every(null, validValue: true)
+				).evaluate(),
+				isTrue
+			);
+			expect(
+				Validator(
+					trueFalseState1,
+					Op.Every(null, validValue: true)
+				).evaluate(),
+				isFalse
+			);
+		});
 		test('Detected value option.', () {
 			expect(
 				Validator(
@@ -413,31 +376,29 @@ void _validatorEvaluationTests() {
 				isNull
 			);
 		});
-		// FIXME: Unable to Mock
-		// Validator._valuesFromState calls InternalStateTuple.valueReferences, which always gets the undefined StateTuple instead of FakeStateTuple
-		// test('Null operator list.', () {
-		// 	expect(
-		// 		Validator(
-		// 			allTrueState,
-		// 			Op.None(null)
-		// 		).evaluate(),
-		// 		isTrue
-		// 	);
-		// 	expect(
-		// 		Validator(
-		// 			allTrueState,
-		// 			Op.None(null, invalidValue: true)
-		// 		).evaluate(),
-		// 		isFalse
-		// 	);
-		// 	expect(
-		// 		Validator(
-		// 			trueFalseState1,
-		// 			Op.None(null, invalidValue: true)
-		// 		).evaluate(),
-		// 		isFalse
-		// 	);
-		// });
+		test('Null operator list.', () {
+			expect(
+				Validator(
+					allTrueState,
+					Op.None(null)
+				).evaluate(),
+				isTrue
+			);
+			expect(
+				Validator(
+					allTrueState,
+					Op.None(null, invalidValue: true)
+				).evaluate(),
+				isFalse
+			);
+			expect(
+				Validator(
+					trueFalseState1,
+					Op.None(null, invalidValue: true)
+				).evaluate(),
+				isFalse
+			);
+		});
 		test('Detected value option.', () {
 			expect(
 				Validator(
@@ -471,7 +432,6 @@ void _validatorEvaluationTests() {
 		});
 	});
 	group('Any operator.', () {
-		// TODO: Null operator list tests all state values
 		test('No operators.', () {
 			expect(
 				Validator(
@@ -486,6 +446,29 @@ void _validatorEvaluationTests() {
 					Op.Any([], validValue: true)
 				).evaluate(),
 				isNull
+			);
+		});
+		test('Null operator list.', () {
+			expect(
+				Validator(
+					trueFalseState1,
+					Op.Any(null)
+				).evaluate(),
+				isTrue
+			);
+			expect(
+				Validator(
+					allTrueState,
+					Op.Any(null)
+				).evaluate(),
+				isFalse
+			);
+			expect(
+				Validator(
+					allTrueState,
+					Op.Any(null, validValue: true)
+				).evaluate(),
+				isTrue
 			);
 		});
 		test('Detects any.', () {
@@ -560,7 +543,32 @@ void _validatorEvaluationTests() {
 				isNull
 			);
 		});
-		// TODO: The remaining tests will have the same issue as the "Null operator list" tests from the other operators.
+		test('Ensures only specified value.', () {
+			expect(
+				Validator(
+					trueFalseState1,
+					Op.Only(
+						[
+							trueValue1
+						],
+						validValue: true
+					),
+				).evaluate(),
+				isTrue
+			);
+			expect(
+				Validator(
+					trueFalseState1,
+					Op.Only(
+						[
+							trueValue1
+						],
+						validValue: false
+					),
+				).evaluate(),
+				isFalse
+			);
+		});
 	});
 
 }
