@@ -123,22 +123,24 @@ class Validator {
 			return null;
 		}
 		List<bool> includedBoolValues = [];
-		HashSet<int> includedStateValues = HashSet();
+		HashSet<StateValue> includedStateValues = HashSet();
 		StateTuple state = validator.altState == null ? this.state : validator.altState!;
 		UnmodifiableListView<bool> allValues = state.getValues();
+		UnmodifiableListView<StateValue> allStateValues = state.getStateValues();
 
 		for (int i = 0; i < validator.values.length; i++) {
-			includedStateValues.add(i);
 			bool? value = state.getValue(validator.values[i]);
 			if (value == null) return null;
+			includedStateValues.add(validator.values[i]);
 			includedBoolValues.add(value);
 		}
 
 		bool result = includedBoolValues.every((element) => element == validator.validValue);
 
 		if (result) {
-			for (int i = 0; i < allValues.length; i++) {
-				if (!includedStateValues.contains(i) && allValues[i] == validator.validValue) {
+			for (int i = 0; i < allStateValues.length; i++) {
+				StateValue sv = allStateValues[i];
+				if (!includedStateValues.contains(sv) && allValues[i] == validator.validValue) {
 					return false;
 				}
 			}

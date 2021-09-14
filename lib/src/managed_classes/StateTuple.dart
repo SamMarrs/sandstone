@@ -125,6 +125,12 @@ class StateTuple {
 	bool? getValue(StateValue value) => _manager.getFromState(this, value);
 
 	UnmodifiableListView<bool> getValues() => _values;
+	UnmodifiableListView<StateValue> getStateValues() => UnmodifiableListView(_valueReferences.map(
+		(managedValue) {
+			InternalManagedValue imv = InternalManagedValue(managedValue);
+			return imv.stateValue;
+		}
+	));
 
 	int? _hashCode;
 	/// hashCode of [StateTuple] must follow a few rules.

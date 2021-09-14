@@ -41,6 +41,10 @@ class FakeStateTuple extends Fake implements StateTuple {
 		bool unknown = !_valueReferences.map((e) => e._stateValue).contains(sv);
 		return unknown ? null : (sv as FakeStateValue).getValue();
 	}
+	@override
+	UnmodifiableListView<StateValue> getStateValues() => UnmodifiableListView(
+		_valueReferences.map((e) => e._stateValue)
+	);
 
 	@override
 	UnmodifiableListView<bool> getValues() => _values;
