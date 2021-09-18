@@ -80,3 +80,5 @@ windows/
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
 
+# Testing related
+test/**/*.mocks.dart

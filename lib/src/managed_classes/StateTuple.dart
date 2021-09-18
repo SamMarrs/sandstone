@@ -1,4 +1,56 @@
-part of '../StateManager.dart';
+
+import 'dart:collection';
+import 'dart:math' as Math;
+
+import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+
+class InternalStateTuple {
+	final StateTuple stateTuple;
+
+	InternalStateTuple(this.stateTuple);
+
+	// TODO: It might be good to change this to a LinkedHashMap for some cleaner code.
+	UnmodifiableListView<bool> get values => stateTuple._values;
+	// TODO: It might be good to change this to a LinkedHashMap for some cleaner code.
+	UnmodifiableListView<ManagedValue> get valueReferences => stateTuple._valueReferences;
+	StateManager get manager => stateTuple._manager;
+
+	static StateTuple fromState(
+		StateTuple oldState,
+		[Map<int, bool>? updates]
+	) => StateTuple._fromState(oldState, updates);
+
+	static StateTuple fromMap(
+		LinkedHashMap<StateValue, ManagedValue> valueReferences,
+		StateManager manager,
+		[Map<int, bool>? updates]
+	) => StateTuple._fromMap(valueReferences, manager, updates);
+
+	static StateTuple? fromHash(
+		LinkedHashMap<StateValue, ManagedValue> valueReferences,
+		StateManager manager,
+		int stateHash
+	) => StateTuple._fromHash(valueReferences, manager, stateHash);
+
+	static Map<StateValue, bool> findDifference(StateTuple stateA, StateTuple stateB) {
+		assert(stateA._manager == stateB._manager);
+		if (stateA._manager != stateB._manager) return {};
+
+		Map<StateValue, bool> diff = {};
+		stateA._valueReferences.forEach(
+			(managedValue) {
+				InternalManagedValue mv = InternalManagedValue(managedValue);
+				if (stateA._values[mv.position] != stateB._values[mv.position]) {
+					diff[mv.stateValue] = stateB._values[mv.position];
+				}
+			}
+		);
+		return diff;
+	}
+
+}
 
 /// Represents a state within a finite state machine.
 class StateTuple {
@@ -35,8 +87,9 @@ class StateTuple {
 		_values = UnmodifiableListView(
 			valueReferences.values.toList().map(
 				(managedValue) {
-					return updates != null && updates.containsKey(managedValue._position) ?
-						updates[managedValue._position]!
+					InternalManagedValue mv = InternalManagedValue(managedValue);
+					return updates != null && updates.containsKey(mv.position) ?
+						updates[mv.position]!
 						: managedValue.value;
 				}
 			).toList(growable: false)
@@ -65,20 +118,19 @@ class StateTuple {
 		return st;
 	}
 
-	static Map<StateValue, bool> _findDifference(StateTuple stateA, StateTuple stateB) {
-		assert(stateA._manager == stateB._manager);
-		if (stateA._manager != stateB._manager) return {};
 
-		Map<StateValue, bool> diff = {};
-		stateA._valueReferences.forEach(
-			(managedValue) {
-				if (stateA._values[managedValue._position] != stateB._values[managedValue._position]) {
-					diff[managedValue._stateValue] = stateB._values[managedValue._position];
-				}
-			}
-		);
-		return diff;
-	}
+	/// Get the boolean value represented by the provided [StateValue] within this [StateTuple].
+	///
+	/// If the provided [StateValue] does not exists within this [StateTuple], then `null` will be returned.
+	bool? getValue(StateValue value) => _manager.getFromState(this, value);
+
+	UnmodifiableListView<bool> getValues() => _values;
+	UnmodifiableListView<StateValue> getStateValues() => UnmodifiableListView(_valueReferences.map(
+		(managedValue) {
+			InternalManagedValue imv = InternalManagedValue(managedValue);
+			return imv.stateValue;
+		}
+	));
 
 	int? _hashCode;
 	/// hashCode of [StateTuple] must follow a few rules.
@@ -116,7 +168,8 @@ class StateTuple {
 		String ret = '';
 		_valueReferences.forEach(
 			(ref) {
-				ret += ref._position.toString() + ' ' + _values[ref._position].toString() + ', ';
+				InternalManagedValue mv = InternalManagedValue(ref);
+				ret += mv.position.toString() + ' ' + _values[mv.position].toString() + ', ';
 			}
 		);
 		return ret;

@@ -1,12 +1,13 @@
 // import 'package:flutter_test/flutter_test.dart';
 
-// import 'package:fsm/main.dart';
+import 'src/utilities/validation/operators.dart' as Op;
+import 'src/utilities/validation/Validator.dart' as Validator;
+import 'src/unmanaged_classes/unmanaged_classes.dart' as UnmanagedClasses;
+import 'src/managed_classes/managed_classes.dart' as ManagedClasses;
 
 void main() {
-//   test('adds one to input values', () {
-//     final calculator = Calculator();
-//     expect(calculator.addOne(2), 3);
-//     expect(calculator.addOne(-7), -6);
-//     expect(calculator.addOne(0), 1);
-//   });
+	Op.main();
+	Validator.main();
+	UnmanagedClasses.main();
+	ManagedClasses.main();
 }

@@ -1,4 +1,45 @@
-part of '../StateManager.dart';
+
+import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
+
+class InternalManagedValue {
+	final ManagedValue mv;
+
+	InternalManagedValue(this.mv);
+
+	static ManagedValue create({
+		required StateValue managedValue,
+		required int position,
+		required StateManager manager
+	}) => ManagedValue._(managedValue: managedValue, position: position, manager: manager);
+
+	bool Function(StateTuple previous, StateTuple nextState, StateManager manager) get validateTrue => mv._validateTrue;
+	bool Function(StateTuple previous, StateTuple nextState, StateManager manager) get validateFalse => mv._validateFalse;
+
+	set value(bool value) => mv._value = value;
+
+	int get position => mv._position;
+
+	StateManager get manager => mv._manager;
+
+	StateValue get stateValue => mv._stateValue;
+
+	bool isValid(StateTuple previous, StateTuple nextState) {
+		InternalStateTuple ins = InternalStateTuple(nextState);
+		if (ins.values[mv._position]) {
+			return mv._validateTrue(previous, nextState, mv._manager);
+		} else {
+			return mv._validateFalse(previous, nextState, mv._manager);
+		}
+	}
+
+	bool canChange(StateTuple previous, StateTuple nextState,)  {
+		InternalStateTuple ps = InternalStateTuple(previous);
+		return ps.values[mv._position] ? mv._validateFalse(previous, nextState, mv._manager) : mv._validateTrue(previous, nextState, mv._manager);
+	}
+}
 
 /// Similar in function to [BooleanStateValue], but stores metadata needed by [StateManager] and other classes.
 class ManagedValue {
@@ -23,26 +64,5 @@ class ManagedValue {
 		_validateFalse = managedValue.validateFalse,
 		_validateTrue = managedValue.validateTrue,
 		_stateValue = managedValue;
-
-	bool _isValid(StateTuple previous, StateTuple nextState) {
-		if (nextState._values[_position]) {
-			return _validateTrue(previous, nextState, _manager);
-		} else {
-			return _validateFalse(previous, nextState, _manager);
-		}
-	}
-
-	bool _canChange(StateTuple previous, StateTuple nextState,)  {
-		return previous._values[_position] ? _validateFalse(previous, nextState, _manager) : _validateTrue(previous, nextState, _manager);
-	}
-
-	/// Returns the value correlated to this [ManagedValue] within the provided [StateTuple].
-	///
-	/// Returns `null` if [stateTuple] was created by a different [StateManager] than this [ManagedValue].
-	bool? getFromState(StateTuple stateTuple) {
-		assert(stateTuple._manager == _manager, 'StateTuple must be from the same state manager.');
-		if (stateTuple._manager != _manager) return null;
-		return stateTuple._values[_position];
-	}
 
 }

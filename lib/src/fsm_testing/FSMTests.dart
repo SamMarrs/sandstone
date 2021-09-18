@@ -2,9 +2,10 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
 import '../unmanaged_classes/StateValue.dart';
 import '../unmanaged_classes/Transition.dart';
-import '../StateManager.dart';
 import '../unmanaged_classes/BooleanStateValue.dart';
 import '../unmanaged_classes/StateAction.dart';
 import '../unmanaged_classes/StateTransition.dart';

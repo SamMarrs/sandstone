@@ -1,3 +1,5 @@
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
+
 import '../configurations/StateValidationLogic.dart';
 
 import '../StateManager.dart';

@@ -1,40 +1,52 @@
-part of '../StateManager.dart';
 
-class _StateGraph {
-	final LinkedHashMap<StateValue, ManagedValue> _managedValues;
+import 'dart:collection';
+
+import 'package:sandstone/src/StateManager.dart';
+import 'package:sandstone/src/configurations/StateValidationLogic.dart';
+import 'package:sandstone/src/fsm_testing/FSMTests.dart';
+import 'package:sandstone/src/managed_classes/ManagedValue.dart';
+import 'package:sandstone/src/managed_classes/StateTuple.dart';
+import 'package:sandstone/src/unmanaged_classes/BooleanStateValue.dart';
+import 'package:sandstone/src/unmanaged_classes/StateValue.dart';
+import 'package:sandstone/src/unmanaged_classes/Transition.dart';
+import 'package:sandstone/src/unmanaged_classes/fsm_mirroring.dart';
+import 'package:sandstone/src/utilities/Utils.dart';
+
+class StateGraph {
+	final LinkedHashMap<StateValue, ManagedValue> managedValues;
 
 	// TODO: The underlying HashMap creates far more buckets than it needs to.
 	// 512 for 224 elements.
 	// This map never changes after initialization of the state manager, so a sparse map may be possible.
-	final HashMap<StateTuple, HashMap<Transition, StateTuple>> _validStates;
+	final HashMap<StateTuple, HashMap<Transition, StateTuple>> validStates;
 
-	StateTuple _currentState;
+	StateTuple currentState;
 
-	final StateManager _manager;
+	final StateManager manager;
 
-	_StateGraph._({
+	StateGraph._({
 		required LinkedHashMap<StateValue, ManagedValue> managedValues,
 		required HashMap<StateTuple, HashMap<Transition, StateTuple>> validStates,
 		required StateTuple currentState,
 		required StateManager manager
-	}): _managedValues = managedValues,
-		_validStates = validStates,
-		_currentState = currentState,
-		_manager = manager;
+	}): managedValues = managedValues,
+		validStates = validStates,
+		currentState = currentState,
+		manager = manager;
 
-	static _StateGraph? create({
+	static StateGraph? create({
 		required StateManager manager,
 		required HashSet<Transition> stateTransitions,
 		required LinkedHashMap<StateValue, ManagedValue> unmanagedToManagedValues
 	}) {
 
-		HashMap<StateTuple, HashMap<Transition, StateTuple>>? validStates = _StateGraph._buildAdjacencyList(
+		HashMap<StateTuple, HashMap<Transition, StateTuple>>? validStates = StateGraph._buildAdjacencyList(
 			managedValues: unmanagedToManagedValues,
 			manager: manager,
 			stateTransitions: stateTransitions
 		);
-		StateTuple currentState = StateTuple._fromMap(unmanagedToManagedValues, manager);
-		return validStates == null ? null : _StateGraph._(
+		StateTuple currentState = InternalStateTuple.fromMap(unmanagedToManagedValues, manager);
+		return validStates == null ? null : StateGraph._(
 			managedValues: unmanagedToManagedValues,
 			validStates: validStates,
 			currentState: currentState,
@@ -47,7 +59,7 @@ class _StateGraph {
 		required StateManager manager,
 		required HashSet<Transition> stateTransitions,
 	}) {
-		StateTuple initialState = StateTuple._fromMap(managedValues, manager);
+		StateTuple initialState = InternalStateTuple.fromMap(managedValues, manager);
 		HashMap<StateTuple, HashMap<Transition, StateTuple>> adjacencyList = HashMap();
 		HashSet<Transition> usedTransitions = HashSet();
 		bool failedMirroredTransition = false;
@@ -60,57 +72,64 @@ class _StateGraph {
 			StateTuple currentState,
 			Transition transition,
 		) {
+			InternalStateTuple cs = InternalStateTuple(currentState);
 			Map<int, bool> requiredChanges = {};
 			transition.stateChanges.forEach(
 				(key, value) {
 					assert(managedValues[key] != null);
-					requiredChanges[managedValues[key]!._position] = value;
+					requiredChanges[InternalManagedValue(managedValues[key]!).position] = value;
 				}
 			);
 			// [[int, bool]]
 			// Find all values that are allowed to changes. This excluded changes to mirrored values.
 			List<List<dynamic>> possibleChanges = [];
-			manager._managedValues.forEach(
+			InternalStateManager(manager).managedValues.forEach(
 				(sv, mv) {
-					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(mv._position)) {
-						possibleChanges.add([mv._position, currentState._values[mv._position]]);
+					InternalManagedValue imv = InternalManagedValue(mv);
+					if (!(sv is MirroredStateValue) && !requiredChanges.containsKey(imv.position)) {
+						possibleChanges.add([imv.position, cs.values[imv.position]]);
 					}
 				}
 			);
 
 			bool isValid(StateTuple nextState) {
-				bool _isValid = nextState._valueReferences.every(
+				InternalStateTuple ns = InternalStateTuple(nextState);
+				InternalStateManager ism = InternalStateManager(manager);
+				bool _isValid = ns.valueReferences.every(
 					(managedValue) {
-						bool newValue = nextState._values[managedValue._position];
-						bool oldValue = currentState._values[managedValue._position];
+						InternalManagedValue imv = InternalManagedValue(managedValue);
+						bool newValue = ns.values[imv.position];
+						bool oldValue = cs.values[imv.position];
 						if (
-							managedValue._stateValue is BooleanStateValue
+							imv.stateValue is BooleanStateValue
 							&& (
-								(managedValue._stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
+								(imv.stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
 								|| (
-									(managedValue._stateValue as BooleanStateValue).stateValidationLogic == null
-									&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+									(imv.stateValue as BooleanStateValue).stateValidationLogic == null
+									&& ism.stateValidationLogic == StateValidationLogic.canChangeToX
 								)
 							)
 							&& newValue != oldValue
 						) {
-							return managedValue._canChange(currentState, nextState);
+							return imv.canChange(currentState, nextState);
 						}
 						return true;
 					}
 				);
-				return _isValid && manager._canBeXStates.every(
-					(stateValue) => stateValue._isValid(currentState, nextState)
+				return _isValid && ism.canBeXStates.every(
+					(stateValue) => InternalManagedValue(stateValue).isValid(currentState, nextState)
 				);
 			}
 			int mapToInt(StateTuple baseState, Map<int, bool> changes) {
+				InternalStateTuple bs = InternalStateTuple(baseState);
 				LinkedHashMap<int, bool> newHash = LinkedHashMap();
-				baseState._valueReferences.forEach(
+				bs.valueReferences.forEach(
 					(mv) {
-						if (changes.containsKey(mv._position)) {
-							newHash[mv._position] = changes[mv._position]!;
+						InternalManagedValue imv = InternalManagedValue(mv);
+						if (changes.containsKey(imv.position)) {
+							newHash[imv.position] = changes[imv.position]!;
 						} else {
-							newHash[mv._position] = baseState._values[mv._position];
+							newHash[imv.position] = bs.values[imv.position];
 						}
 					}
 				);
@@ -138,7 +157,7 @@ class _StateGraph {
 				if (diff == 0) {
 					changes.addAll(requiredChanges);
 					int hash = mapToInt(currentState, changes);
-					StateTuple? nextState = StateTuple._fromHash(manager._managedValues, manager, hash);
+					StateTuple? nextState = InternalStateTuple.fromHash(InternalStateManager(manager).managedValues, manager, hash);
 					// If this fails, it probably is an implementation mistake.
 					assert(nextState != null);
 					if (nextState != null && isValid(nextState)) {
@@ -178,7 +197,7 @@ class _StateGraph {
 				usedTransitions.add(transition);
 				adjacencyList[state]![transition] = nextState;
 				if (!adjacencyList.containsKey(nextState)) {
-					if (manager._optimisticTransitions) {
+					if (InternalStateManager(manager).optimisticTransitions) {
 						optimisticFindNextState(nextState);
 					} else {
 						conservativeFindNextState(nextState);
@@ -212,6 +231,7 @@ class _StateGraph {
 		};
 
 		conservativeFindNextState = (StateTuple state) {
+			InternalStateTuple s = InternalStateTuple(state);
 			if (adjacencyList.containsKey(state)) {
 				// This state has already been visited.
 				return;
@@ -226,10 +246,10 @@ class _StateGraph {
 					transition.stateChanges.forEach(
 						(key, value) {
 							assert(managedValues[key] != null);
-							updates[managedValues[key]!._position] = value;
+							updates[InternalManagedValue(managedValues[key]!).position] = value;
 						}
 					);
-					StateTuple nextState = StateTuple._fromState(state, updates);
+					StateTuple nextState = InternalStateTuple.fromState(state, updates);
 
 					bool transitionIsValid = transition.stateChanges.entries.every(
 						(element) {
@@ -237,24 +257,25 @@ class _StateGraph {
 							bool newValue = element.value;
 							assert(managedValues[key] != null);
 							ManagedValue managedValue = managedValues[key]!;
+							InternalManagedValue imv = InternalManagedValue(managedValue);
 							if (
-								managedValue._stateValue is BooleanStateValue
+								imv.stateValue is BooleanStateValue
 								&& (
-									(managedValue._stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
+									(imv.stateValue as BooleanStateValue).stateValidationLogic == StateValidationLogic.canChangeToX
 									|| (
-										(managedValue._stateValue as BooleanStateValue).stateValidationLogic == null
-										&& manager._stateValidationLogic == StateValidationLogic.canChangeToX
+										(imv.stateValue as BooleanStateValue).stateValidationLogic == null
+										&& InternalStateManager(manager).stateValidationLogic == StateValidationLogic.canChangeToX
 									)
 								)
-								&& newValue != state._values[managedValue._position]
+								&& newValue != s.values[imv.position]
 							) {
-								return managedValue._canChange(state, nextState);
+								return imv.canChange(state, nextState);
 							}
 							return true;
 						}
 					);
-					transitionIsValid = transitionIsValid && manager._canBeXStates.every(
-						(stateValue) => stateValue._isValid(state, nextState)
+					transitionIsValid = transitionIsValid && InternalStateManager(manager).canBeXStates.every(
+						(stateValue) => InternalManagedValue(stateValue).isValid(state, nextState)
 					);
 
 					if (transitionIsValid) {
@@ -268,7 +289,7 @@ class _StateGraph {
 			);
 		};
 
-		if (manager._optimisticTransitions) {
+		if (InternalStateManager(manager).optimisticTransitions) {
 			optimisticFindNextState(initialState);
 		} else {
 			conservativeFindNextState(initialState);
@@ -278,14 +299,12 @@ class _StateGraph {
 	}
 
 	void changeState(StateTuple newState) {
-		if (_manager._showDebugLogs) {
-			Developer.log(newState.toString());
-		}
-
-		_currentState = newState;
-		newState._valueReferences.forEach(
+		InternalStateTuple ns = InternalStateTuple(newState);
+		currentState = newState;
+		ns.valueReferences.forEach(
 			(managedValue) {
-				managedValue._value = newState._values[managedValue._position];
+				InternalManagedValue imv = InternalManagedValue(managedValue);
+				imv.value = ns.values[imv.position];
 			}
 		);
 	}
