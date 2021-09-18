@@ -15,15 +15,20 @@ class InternalManagedValue {
 		required StateManager manager
 	}) => ManagedValue._(managedValue: managedValue, position: position, manager: manager);
 
+	bool Function(StateTuple previous, StateTuple nextState, StateManager manager) get validateTrue => mv._validateTrue;
+	bool Function(StateTuple previous, StateTuple nextState, StateManager manager) get validateFalse => mv._validateFalse;
+
 	set value(bool value) => mv._value = value;
 
 	int get position => mv._position;
 
+	StateManager get manager => mv._manager;
+
 	StateValue get stateValue => mv._stateValue;
 
 	bool isValid(StateTuple previous, StateTuple nextState) {
-		InternalStateTuple ns = InternalStateTuple(nextState);
-		if (ns.values[mv._position]) {
+		InternalStateTuple ins = InternalStateTuple(nextState);
+		if (ins.values[mv._position]) {
 			return mv._validateTrue(previous, nextState, mv._manager);
 		} else {
 			return mv._validateFalse(previous, nextState, mv._manager);
@@ -59,17 +64,5 @@ class ManagedValue {
 		_validateFalse = managedValue.validateFalse,
 		_validateTrue = managedValue.validateTrue,
 		_stateValue = managedValue;
-
-
-
-	/// Returns the value correlated to this [ManagedValue] within the provided [StateTuple].
-	///
-	/// Returns `null` if [stateTuple] was created by a different [StateManager] than this [ManagedValue].
-	bool? getFromState(StateTuple stateTuple) {
-		InternalStateTuple st = InternalStateTuple(stateTuple);
-		assert(st.manager == _manager, 'StateTuple must be from the same state manager.');
-		if (st.manager != _manager) return null;
-		return st.values[_position];
-	}
 
 }

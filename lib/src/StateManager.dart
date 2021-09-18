@@ -36,6 +36,16 @@ import 'utilities/Tuple.dart';
 
 // TODO: Force the state validation functions to use the new Validator class.
 
+// TODO: Add XOR operator.
+
+// TODO: Mirrored FSMs setup should be able to get the initial state from the mirrored FSM intead of manually defining it.
+// This should remain an option, not a requirement.
+
+// TODO: Mirrored FSMs may be autocreated from ValueNotifier with an Enum type.
+// Mirrored states can be accessed with the enum values.
+
+// TODO: Create mirrored fsm from external StateManager.
+
 class InternalStateManager {
 	final StateManager sm;
 
